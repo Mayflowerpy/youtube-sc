@@ -1,6 +1,7 @@
 import logging
+import json
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from openai import OpenAI
@@ -26,6 +27,8 @@ class AppSettings(BaseSettings):
 class YouTubeShort(BaseModel):
     start_text: str = Field(description="Starting text of the YouTube short segment")
     end_text: str = Field(description="Ending text of the YouTube short segment")
+    start_time: float = Field(description="Start time in seconds from the beginning of the audio")
+    end_time: float = Field(description="End time in seconds from the beginning of the audio")
     full_transcript: str = Field(description="Complete transcript text for this short")
     reasoning: str = Field(
         description="Why this segment would make a good YouTube short"
@@ -52,13 +55,27 @@ def analyze_transcript_for_shorts(
     """Analyze transcript file to identify potential YouTube shorts segments."""
     try:
         with open(transcript_path, "r", encoding="utf-8") as f:
-            transcript_text = f.read()
+            transcript_data = json.load(f)
+        
+        # Extract plain text for LLM analysis
+        transcript_text = ""
+        for segment in transcript_data["segments"]:
+            transcript_text += segment["text"] + " "
+        transcript_text = transcript_text.strip()
+        
     except FileNotFoundError:
         log.error(f"Transcript file not found: {transcript_path}")
         return YouTubeShortsAnalysis(
             shorts=[],
             total_shorts_found=0,
             analysis_summary="Transcript file not found",
+        )
+    except json.JSONDecodeError:
+        log.error(f"Invalid JSON format in transcript file: {transcript_path}")
+        return YouTubeShortsAnalysis(
+            shorts=[],
+            total_shorts_found=0,
+            analysis_summary="Invalid JSON format in transcript file",
         )
 
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
@@ -74,7 +91,12 @@ def analyze_transcript_for_shorts(
     - Controversial or thought-provoking statements
     - Educational content that can stand alone
     
-    For each identified segment, provide the exact start and end text from the transcript, the full transcript for that segment, reasoning why it would work as a short, estimated duration, and key topics.
+    For each identified segment, provide:
+    1. The exact start and end text from the transcript
+    2. Start and end timestamps in seconds (I'll provide these separately)
+    3. The full transcript for that segment
+    4. Reasoning why it would work as a short
+    5. Estimated duration and key topics
     
     Transcript:
     {transcript_text}
@@ -94,7 +116,17 @@ def analyze_transcript_for_shorts(
             temperature=0.3,
         )
 
-        return response.choices[0].message.parsed  # type: ignore
+        analysis = response.choices[0].message.parsed  # type: ignore
+        
+        # Add precise timestamps to each short by matching text to transcript segments
+        for short in analysis.shorts:
+            start_time, end_time = find_timestamps_for_text(
+                short.start_text, short.end_text, transcript_data
+            )
+            short.start_time = start_time
+            short.end_time = end_time
+        
+        return analysis
 
     except Exception as e:
         log.error(f"Error analyzing transcript: {e}")
@@ -105,11 +137,57 @@ def analyze_transcript_for_shorts(
         )
 
 
+def find_timestamps_for_text(start_text: str, end_text: str, transcript_data: dict) -> tuple[float, float]:
+    """Find precise timestamps for start and end text in the transcript data."""
+    start_time = 0.0
+    end_time = 0.0
+    
+    # Clean the text for better matching
+    start_text_clean = start_text.strip().lower()
+    end_text_clean = end_text.strip().lower()
+    
+    found_start = False
+    
+    for segment in transcript_data["segments"]:
+        segment_text = segment["text"].strip().lower()
+        
+        # Look for start text
+        if not found_start and start_text_clean in segment_text:
+            # Try to find word-level timestamp if available
+            if "words" in segment and segment["words"]:
+                for word in segment["words"]:
+                    if start_text_clean.startswith(word["word"].lower().strip()):
+                        start_time = word["start"]
+                        found_start = True
+                        break
+            if not found_start:
+                start_time = segment["start"]
+                found_start = True
+        
+        # Look for end text
+        if found_start and end_text_clean in segment_text:
+            # Try to find word-level timestamp if available
+            if "words" in segment and segment["words"]:
+                for word in reversed(segment["words"]):
+                    if end_text_clean.endswith(word["word"].lower().strip()):
+                        end_time = word["end"]
+                        break
+            if end_time == 0.0:
+                end_time = segment["end"]
+            break
+    
+    # If we didn't find end_text, use the last segment's end time
+    if end_time == 0.0 and transcript_data["segments"]:
+        end_time = transcript_data["segments"][-1]["end"]
+    
+    return start_time, end_time
+
+
 def main():
     log.info("Starting text analysis for YouTube shorts")
 
     settings = AppSettings()  # type: ignore
-    transcript_path = Path("data/text/described_text.txt")
+    transcript_path = Path("data/text/extracted_text_with_timestamps.json")
 
     log.info(f"Analyzing transcript: {transcript_path}")
     analysis = analyze_transcript_for_shorts(transcript_path, settings)
@@ -119,6 +197,7 @@ def main():
     log.info(f"Analysis summary: {analysis.analysis_summary}")
     for i, short in enumerate(analysis.shorts, 1):
         log.info(f"Short {i}: {short.key_topics} ({short.estimated_duration})")
+        log.info(f"  Time: {short.start_time:.1f}s - {short.end_time:.1f}s")
 
     return analysis
 
