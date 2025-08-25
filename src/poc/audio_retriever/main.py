@@ -18,14 +18,14 @@ def extract_audio():
     # Ensure output directory exists
     output_dir.mkdir(exist_ok=True)
     
-    log.info(f"Extracting audio from {input_file}")
+    log.info(f"Extracting first 5 minutes of audio from {input_file}")
     
     try:
-        # Extract audio using ffmpeg-python
+        # Extract first 5 minutes of audio using ffmpeg-python
         (
             ffmpeg
             .input(input_file)
-            .output(str(output_file), acodec='libmp3lame')
+            .output(str(output_file), acodec='libmp3lame', t=300)  # t=300 seconds (5 minutes)
             .overwrite_output()
             .run(capture_stdout=True, capture_stderr=True)
         )
