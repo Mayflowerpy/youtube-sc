@@ -1,0 +1,54 @@
+from pydantic import BaseModel, Field
+
+
+class SpeechSegment(BaseModel):
+    start_time: float = Field(
+        description="Start time in seconds from the beginning of the audio"
+    )
+    end_time: float = Field(
+        description="End time in seconds from the beginning of the audio"
+    )
+    text: str = Field(description="Text content of the segment")
+
+
+class Speech(BaseModel):
+    language: str = Field(description="Language code of the transcript")
+    duration_seconds: float = Field(
+        description="Total duration of the audio in seconds"
+    )
+    segments: list[SpeechSegment] = Field(
+        description="List of text segments within the video"
+    )
+
+
+class YouTubeShort(BaseModel):
+    start_segment_index: int = Field(
+        description="Index of the starting segment (0-based)"
+    )
+    end_segment_index: int = Field(
+        description="Index of the ending segment (0-based, inclusive)"
+    )
+    start_time: float = Field(
+        description="Start time in seconds from the beginning of the audio"
+    )
+    end_time: float = Field(
+        description="End time in seconds from the beginning of the audio"
+    )
+    full_transcript: str = Field(description="Complete transcript text for this short")
+    reasoning: str = Field(
+        description="Why this segment would make a good YouTube short"
+    )
+    estimated_duration: str = Field(
+        description="Estimated duration of this segment (e.g., '30-60 seconds')"
+    )
+    key_topics: list[str] = Field(
+        description="Main topics or themes covered in this segment"
+    )
+
+
+class YouTubeShortsRecommendation(BaseModel):
+    shorts: list[YouTubeShort] = Field(
+        description="List of identified YouTube shorts segments"
+    )
+    total_shorts_found: int = Field(description="Total number of shorts identified")
+    analysis_summary: str = Field(description="Overall summary of the analysis")

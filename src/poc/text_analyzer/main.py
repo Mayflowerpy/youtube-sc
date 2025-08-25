@@ -25,10 +25,18 @@ class AppSettings(BaseSettings):
 
 
 class YouTubeShort(BaseModel):
-    start_text: str = Field(description="Starting text of the YouTube short segment")
-    end_text: str = Field(description="Ending text of the YouTube short segment")
-    start_time: float = Field(description="Start time in seconds from the beginning of the audio")
-    end_time: float = Field(description="End time in seconds from the beginning of the audio")
+    start_segment_index: int = Field(
+        description="Index of the starting segment (0-based)"
+    )
+    end_segment_index: int = Field(
+        description="Index of the ending segment (0-based, inclusive)"
+    )
+    start_time: float = Field(
+        description="Start time in seconds from the beginning of the audio"
+    )
+    end_time: float = Field(
+        description="End time in seconds from the beginning of the audio"
+    )
     full_transcript: str = Field(description="Complete transcript text for this short")
     reasoning: str = Field(
         description="Why this segment would make a good YouTube short"
@@ -38,6 +46,26 @@ class YouTubeShort(BaseModel):
     )
     key_topics: List[str] = Field(
         description="Main topics or themes covered in this segment"
+    )
+
+
+class VideoTextSegment(BaseModel):
+    start_time: float = Field(
+        description="Start time in seconds from the beginning of the audio"
+    )
+    end_time: float = Field(
+        description="End time in seconds from the beginning of the audio"
+    )
+    text: str = Field(description="Text content of the segment")
+
+
+class VideoText(BaseModel):
+    language: str = Field(description="Language code of the transcript")
+    duration_seconds: float = Field(
+        description="Total duration of the audio in seconds"
+    )
+    segments: list[VideoTextSegment] = Field(
+        description="List of text segments within the video"
     )
 
 
@@ -55,14 +83,14 @@ def analyze_transcript_for_shorts(
     """Analyze transcript file to identify potential YouTube shorts segments."""
     try:
         with open(transcript_path, "r", encoding="utf-8") as f:
-            transcript_data = json.load(f)
-        
+            transcript_data = VideoText.model_validate_json(json.load(f))
+
         # Extract plain text for LLM analysis
         transcript_text = ""
-        for segment in transcript_data["segments"]:
-            transcript_text += segment["text"] + " "
+        for segment in transcript_data.segments:
+            transcript_text += segment.text + " "
         transcript_text = transcript_text.strip()
-        
+
     except FileNotFoundError:
         log.error(f"Transcript file not found: {transcript_path}")
         return YouTubeShortsAnalysis(
@@ -80,8 +108,19 @@ def analyze_transcript_for_shorts(
 
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
 
+    # Create numbered segments for LLM analysis
+    numbered_segments = []
+    for i, segment in enumerate(transcript_data.segments):
+        duration = segment.end_time - segment.start_time
+        numbered_segments.append(
+            f"Segment {i}: [{segment.start_time:.1f}s-{segment.end_time:.1f}s, {duration:.1f}s duration] {segment.text}"
+        )
+    
+    segments_text = "\n".join(numbered_segments)
+    total_segments = len(transcript_data.segments)
+
     prompt = f"""
-    Analyze the following video transcript and identify segments that would make excellent YouTube Shorts (60 seconds or less).
+    Analyze the following video transcript segments and identify ranges that would make excellent YouTube Shorts (60 seconds or less).
     
     Look for:
     - Self-contained moments with clear beginning and end
@@ -91,15 +130,18 @@ def analyze_transcript_for_shorts(
     - Controversial or thought-provoking statements
     - Educational content that can stand alone
     
-    For each identified segment, provide:
-    1. The exact start and end text from the transcript
-    2. Start and end timestamps in seconds (I'll provide these separately)
-    3. The full transcript for that segment
-    4. Reasoning why it would work as a short
+    For each identified segment range, provide:
+    1. start_segment_index: The starting segment number (0-based)
+    2. end_segment_index: The ending segment number (0-based, inclusive)
+    3. The full transcript text for those segments combined
+    4. Reasoning why this range would work as a short
     5. Estimated duration and key topics
     
-    Transcript:
-    {transcript_text}
+    Note: There are {total_segments} segments total (numbered 0 to {total_segments-1}).
+    Each segment includes timing information to help you estimate durations.
+    
+    Segments:
+    {segments_text}
     """
 
     try:
@@ -117,15 +159,29 @@ def analyze_transcript_for_shorts(
         )
 
         analysis = response.choices[0].message.parsed  # type: ignore
-        
-        # Add precise timestamps to each short by matching text to transcript segments
+
+        # Add precise timestamps to each short using segment indices
         for short in analysis.shorts:
-            start_time, end_time = find_timestamps_for_text(
-                short.start_text, short.end_text, transcript_data
-            )
-            short.start_time = start_time
-            short.end_time = end_time
-        
+            # Validate segment indices
+            if (short.start_segment_index < 0 or 
+                short.end_segment_index >= len(transcript_data.segments) or
+                short.start_segment_index > short.end_segment_index):
+                log.warning(f"Invalid segment range: {short.start_segment_index}-{short.end_segment_index}")
+                continue
+                
+            # Get timestamps from segment indices
+            start_segment = transcript_data.segments[short.start_segment_index]
+            end_segment = transcript_data.segments[short.end_segment_index]
+            
+            short.start_time = start_segment.start_time
+            short.end_time = end_segment.end_time
+            
+            # Build full transcript for this range
+            segment_texts = []
+            for i in range(short.start_segment_index, short.end_segment_index + 1):
+                segment_texts.append(transcript_data.segments[i].text)
+            short.full_transcript = " ".join(segment_texts).strip()
+
         return analysis
 
     except Exception as e:
@@ -136,51 +192,6 @@ def analyze_transcript_for_shorts(
             analysis_summary=f"Error occurred during analysis: {str(e)}",
         )
 
-
-def find_timestamps_for_text(start_text: str, end_text: str, transcript_data: dict) -> tuple[float, float]:
-    """Find precise timestamps for start and end text in the transcript data."""
-    start_time = 0.0
-    end_time = 0.0
-    
-    # Clean the text for better matching
-    start_text_clean = start_text.strip().lower()
-    end_text_clean = end_text.strip().lower()
-    
-    found_start = False
-    
-    for segment in transcript_data["segments"]:
-        segment_text = segment["text"].strip().lower()
-        
-        # Look for start text
-        if not found_start and start_text_clean in segment_text:
-            # Try to find word-level timestamp if available
-            if "words" in segment and segment["words"]:
-                for word in segment["words"]:
-                    if start_text_clean.startswith(word["word"].lower().strip()):
-                        start_time = word["start"]
-                        found_start = True
-                        break
-            if not found_start:
-                start_time = segment["start"]
-                found_start = True
-        
-        # Look for end text
-        if found_start and end_text_clean in segment_text:
-            # Try to find word-level timestamp if available
-            if "words" in segment and segment["words"]:
-                for word in reversed(segment["words"]):
-                    if end_text_clean.endswith(word["word"].lower().strip()):
-                        end_time = word["end"]
-                        break
-            if end_time == 0.0:
-                end_time = segment["end"]
-            break
-    
-    # If we didn't find end_text, use the last segment's end time
-    if end_time == 0.0 and transcript_data["segments"]:
-        end_time = transcript_data["segments"][-1]["end"]
-    
-    return start_time, end_time
 
 
 def main():
@@ -197,6 +208,7 @@ def main():
     log.info(f"Analysis summary: {analysis.analysis_summary}")
     for i, short in enumerate(analysis.shorts, 1):
         log.info(f"Short {i}: {short.key_topics} ({short.estimated_duration})")
+        log.info(f"  Segments: {short.start_segment_index}-{short.end_segment_index}")
         log.info(f"  Time: {short.start_time:.1f}s - {short.end_time:.1f}s")
 
     return analysis
