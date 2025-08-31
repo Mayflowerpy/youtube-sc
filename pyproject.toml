@@ -12,3 +12,7 @@ dependencies = [
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
 ]
+
+[tool.setuptools]
+packages = ["shorts_creator"]
+package-dir = {"" = "src"}
