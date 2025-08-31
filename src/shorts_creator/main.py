@@ -7,6 +7,7 @@ from shorts_creator.pipeline import (
     speech_to_text,
     shorts_generator,
     storage,
+    video_cutter,
 )
 from shorts_creator.settings.settings import parse_args
 
@@ -39,6 +40,20 @@ async def main():
     storage.save(
         settings.data_dir / "shorts/shorts.json", shorts.model_dump_json(indent=2)
     )
+    
+    # Create video shorts
+    videos_output_dir = settings.data_dir / "shorts/videos"
+    videos_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    for i, short in enumerate(shorts.shorts):
+        video_path = video_cutter.create_short_video(
+            input_video=settings.video_path,
+            short=short,
+            output_dir=videos_output_dir,
+            short_index=i
+        )
+        log.info(f"Created short video {i+1}: {video_path}")
+    
     log.info("Shorts creation completed!")
 
 
