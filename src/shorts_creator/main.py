@@ -49,6 +49,7 @@ async def main():
         video_path = video_cutter.create_short_video(
             input_video=settings.video_path,
             short=short,
+            speech=speech,
             output_dir=videos_output_dir,
             short_index=i
         )
