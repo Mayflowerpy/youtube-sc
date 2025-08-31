@@ -11,6 +11,7 @@ class AppSettings(BaseSettings):
     data_dir: Path = Path("data")
     refresh: bool
     video_path: Path
+    shorts_number: int
 
     class Config:
         env_file = ".env"
@@ -25,5 +26,12 @@ def parse_args() -> AppSettings:
         "-r", "--refresh", action="store_true", help="Refresh/regenerate content"
     )
     parser.add_argument("-v", "--video", type=Path, help="Path to the video file")
+    parser.add_argument(
+        "-s",
+        "--shorts",
+        type=int,
+        default=3,
+        help="Maximum number of shorts to generate",
+    )
     args = parser.parse_args()
-    return AppSettings(refresh=args.refresh, video_path=args.video)  # type: ignore
+    return AppSettings(refresh=args.refresh, video_path=args.video, shorts_number=args.shorts)  # type: ignore
