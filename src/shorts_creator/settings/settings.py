@@ -5,13 +5,13 @@ import argparse
 
 
 class AppSettings(BaseSettings):
-    openai_api_key: str
+    openai_api_key: str = ""
     openai_base_url: str = "https://openrouter.ai/api/v1"
     model_name: str = "deepseek/deepseek-chat"
     data_dir: Path = Path("data")
-    refresh: bool
-    video_path: Path
-    shorts_number: int
+    refresh: bool = False
+    video_path: Path = Path("data/videos/long_video.mp4")
+    shorts_number: int = 3
 
     class Config:
         env_file = ".env"
