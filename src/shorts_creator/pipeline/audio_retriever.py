@@ -6,8 +6,13 @@ log = logging.getLogger(__name__)
 
 
 def retrieve_audio(
-    video_path: Path, output_file: Path, duration_seconds: int | None = None
+    video_path: Path,
+    output_file: Path,
+    refresh: bool,
+    duration_seconds: int | None = None,
 ) -> Path:
+    if output_file.exists() and not refresh:
+        return output_file
     try:
         kwargs = {}
         if duration_seconds:
