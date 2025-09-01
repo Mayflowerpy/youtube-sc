@@ -8,6 +8,7 @@ from shorts_creator.pipeline import (
     shorts_generator,
     storage,
     video_cutter,
+    video_effecter,
 )
 from shorts_creator.settings.settings import parse_args
 
@@ -46,6 +47,7 @@ async def main():
     videos_output_dir.mkdir(parents=True, exist_ok=True)
     
     for i, short in enumerate(shorts.shorts):
+        # 1) Cut the raw short from the source video
         video_path = video_cutter.create_short_video(
             input_video=settings.video_path,
             short=short,
@@ -54,6 +56,16 @@ async def main():
             short_index=i
         )
         log.info(f"Created short video {i+1}: {video_path}")
+
+        # 2) Apply engaging effects using MoviePy (if available)
+        fx_output = videos_output_dir / (video_path.stem + "_fx" + video_path.suffix)
+        final_path = video_effecter.apply_video_effects(
+            input_video=video_path,
+            output_video=fx_output,
+            short=short,
+            speech=speech,
+        )
+        log.info(f"Enhanced short video {i+1}: {final_path}")
     
     log.info("Shorts creation completed!")
 
