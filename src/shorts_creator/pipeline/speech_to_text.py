@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 
 def convert_speech_to_text(
-    audio_file: Path, output_file: Path, refresh: bool
+    audio_file: Path, output_file: Path, refresh: bool = True
 ) -> Speech:
     if output_file.exists() and not refresh:
         return Speech.model_validate_json(storage.read(output_file))

@@ -41,21 +41,24 @@ async def main():
     storage.save(
         settings.data_dir / "shorts/shorts.json", shorts.model_dump_json(indent=2)
     )
-    
+
     # Create video shorts
     videos_output_dir = settings.data_dir / "shorts/videos"
     videos_output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     for i, short in enumerate(shorts.shorts):
         # 1) Cut the raw short from the source video
         video_path = video_cutter.create_short_video(
             input_video=settings.video_path,
             short=short,
-            speech=speech,
             output_dir=videos_output_dir,
-            short_index=i
+            short_index=i,
         )
         log.info(f"Created short video {i+1}: {video_path}")
+
+        # speech = speech_to_text.convert_speech_to_text(
+        #     audio_file, videos_output_dir / f"speech_{i+1}.json"
+        # )
 
         # 2) Apply engaging effects using MoviePy (if available)
         fx_output = videos_output_dir / (video_path.stem + "_fx" + video_path.suffix)
@@ -64,9 +67,10 @@ async def main():
             output_video=fx_output,
             short=short,
             speech=speech,
+            strategy="basic_effects",
         )
         log.info(f"Enhanced short video {i+1}: {final_path}")
-    
+
     log.info("Shorts creation completed!")
 
 

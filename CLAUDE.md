@@ -240,3 +240,133 @@ This document defines **must/should** requirements for producing fast, legible, 
 * Prefer **cursor halo + line box** to laser pointers.
 * Show **before/after** diffs with a vertical wipe or two‑up split for ≤ **1.2 s**.
 * Provide copyable snippet via pinned comment; on‑screen text is summary only.
+
+# Basic Effects Strategy
+
+**Goal:** Convert a 1920×1080 (16:9) screen-recording with English speech into a crisp, vertical **1080×1920 (9:16)** Short with captions, title, and clean pacing—optimized for mobile legibility.
+
+---
+
+## Assumptions
+
+* Input: `in.mp4` (1920×1080), 30/60 fps, English narration.
+* Content type: screen recording with small facecam (bottom-left), diagrams/code/CLI.
+
+---
+
+## Pipeline (high level)
+
+1. **Ingest → Audio cleanup → Speed/pitch → Smart reframing to 9:16 → Overlays (title, captions, progress bar) → Optional readability boosts → Export.**
+
+---
+
+## Requirements
+
+### 1) Audio Cleanup (MUST)
+
+* Normalize speech loudness to **-16 LUFS** (±1 LU).
+* Peak limit at **-1 dBFS**; true peak ≤ **-1 dBTP**.
+* Light broadband denoise and **de-ess** (center \~5–8 kHz) without lisping.
+* Remove DC offset; resample to **48 kHz**, AAC at **320 kbps** on export.
+
+### 2) Speed Change (MUST)
+
+* Apply global speed **1.35×** to video **and** audio.
+* Preserve voice pitch with time-stretch (no "chipmunk").
+* Fallback ladder if artifacts detected: **1.30× → 1.25× → 1.15×**.
+
+### 3) Reframe to 9:16 (MUST)
+
+* Output canvas: **1080×1920**.
+* **Smart crop** order:
+
+  1. Try to keep **facecam + primary content** inside 9:16 window using face detection + saliency.
+  2. If facecam blocks key UI, **reposition/scale** facecam to a free corner (see §6).
+  3. If crop would hide important text, **pillarbox fill**: scale source to fit **height** and add a **blurred, darkened (20–30%)** duplicate as background. No black bars.
+* Soft limit: avoid scaling the source above **100%** of its native vertical resolution to prevent softness.
+* Safe areas: keep overlays **≥120 px** from top/bottom edges.
+
+### 4) Captions (MUST)
+
+* Source: ASR from English speech; auto-correct obvious terms (CLI/code).
+* Style: **2 lines max**, **28–32 chars/line**, sentence case.
+* Font: high-contrast sans; **stroke 2–3 px** or soft shadow.
+* Position: **bottom** above safe area (≈ **MarginV 96–120 px**), never covering key UI.
+* Timing: snap to speech with max **120 ms** offset; no karaoke except **single-word emphasis**.
+
+### 5) Title Strap (MUST)
+
+* Show for **0.8–1.5 s** starting at **0.0 s** (can persist up to 3 s if short).
+* Position: **top** safe area; horizontal strap or compact pill.
+* Copy: ≤ **6–10 words**; avoid jargon. Example: "LLM Task Flow: Core Data Model".
+* Animation: fade/slide ≤ **180–250 ms**; no bouncy easing.
+
+### 6) Facecam Handling (SHOULD)
+
+* If present, **mask to circle** (soft 12–16 px feather), add subtle shadow.
+* Size: **15–22%** of canvas width; opacity 100%.
+* Auto-reposition to a corner **not** overlapping important content; add **4%** inset margin.
+* If face adds no value for >5 s, **auto-hide** and re-show on new segment.
+
+### 7) Readability Boosts (SHOULD)
+
+* **Punch-in** on focal region: scale **1.15–1.25×** over **6–12 frames** (ease-out).
+* **Spotlight** when explaining a line/box: darken outside a rectangle by **40–55%** for **0.4–0.8 s**.
+* **Cursor halo** on clicks: radius **24–32 px**, 200–300 ms fade.
+* **Speed-ramp scrolling** sections to **1.25–1.5×** with 4–6-frame ramps.
+
+### 8) Progress Bar (MAY)
+
+* Thin bar at bottom safe area (height **6–10 px**), animates linearly through duration.
+* Color: brand accent; 60–80% opacity; never under captions.
+
+### 9) Silence/Dead-Air Trim (MAY)
+
+* Detect silence below `speech_dBFS − 20 dB` for ≥ **250 ms** and remove with **120 ms** pre/post handles.
+* Ensure cut cadence does not exceed **1 cut / 500 ms**.
+
+### 10) Color & Sharpness (MAY)
+
+* Gentle contrast/levels auto; avoid crushed blacks on code.
+* Add tiny unsharp mask on downscaled regions (radius 0.6–0.8, amount 0.4–0.6).
+
+### 11) Branding (MAY)
+
+* Tiny logo watermark (≤ **2.5%** width) top-right; auto-hide during title strap.
+
+### 12) Export (MUST)
+
+* Container: **MP4**, codec **H.264 High**, **30 or 60 fps** (match source).
+* Bitrate target: **12–20 Mbps** VBR; keyint ≤ **2×fps**.
+* Audio: AAC **48 kHz**, **320 kbps**.
+* Filename: `shorts_YYYYMMDD_topic_v01.mp4`.
+
+---
+
+## Acceptance Criteria
+
+* Output is **1080×1920** with no letterboxing; background blur used if needed.
+* Speech intelligible on phone speakers; loudness around **-16 LUFS**.
+* Title readable in <2 s and doesn't collide with captions.
+* Captions never cover important UI; max 2 lines; consistent style.
+* If facecam exists, it never obscures focal content and respects margins.
+* Visual change (cut/zoom/overlay) at least every **≤3 s** during explanations.
+
+---
+
+## Tunable Parameters (defaults)
+
+* `speed_factor = 1.35`
+* `caption_fontsize = 42` (1080×1920), `caption_marginV = 100`
+* `spotlight_opacity = 0.45`, `punch_in_max = 1.22`, `punch_in_frames = 8`
+* `progress_bar_height = 8`
+* `bg_blur_sigma = 18–24`, `bg_darkening = 0.25`
+* `facecam_size_pct = 0.18`, `facecam_margin_pct = 0.04`
+
+---
+
+## Fallback Rules
+
+* If ASR confidence < **0.8** on a segment, keep captions but mark with lighter emphasis; never skip.
+* If smart crop cannot keep both facecam and focal UI, **prioritize focal UI**, downscale and move facecam.
+* If readability falls below threshold (small text), force **pillarbox fill** and **no additional zoom** to avoid softness.
