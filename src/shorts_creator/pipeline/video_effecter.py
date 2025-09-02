@@ -33,25 +33,23 @@ def __basic_effects(
     target_ratio = target_w / target_h
     
     if original_ratio > target_ratio:
+        scale_factor = target_w / original_w
+        scaled_w = target_w
+        scaled_h = int(original_h * scale_factor)
+        current_video = current_video.resized((scaled_w, scaled_h))
+        
+        y_offset = (target_h - scaled_h) // 2
+        bg = CompositeVideoClip([current_video.with_position(('center', y_offset))], size=(target_w, target_h))
+        current_video = bg
+    else:
         scale_factor = target_h / original_h
         scaled_w = int(original_w * scale_factor)
-        current_video = current_video.resized((scaled_w, target_h))
+        scaled_h = target_h
+        current_video = current_video.resized((scaled_w, scaled_h))
         
-        if scaled_w > target_w:
-            crop_x = (scaled_w - target_w) // 2
-            current_video = current_video.cropped(x1=crop_x, x2=crop_x + target_w)
-        else:
-            current_video = current_video.resized((target_w, target_h))
-    else:
-        scale_factor = target_w / original_w
-        scaled_h = int(original_h * scale_factor)
-        current_video = current_video.resized((target_w, scaled_h))
-        
-        if scaled_h > target_h:
-            crop_y = (scaled_h - target_h) // 2
-            current_video = current_video.cropped(y1=crop_y, y2=crop_y + target_h)
-        else:
-            current_video = current_video.resized((target_w, target_h))
+        x_offset = (target_w - scaled_w) // 2
+        bg = CompositeVideoClip([current_video.with_position((x_offset, 'center'))], size=(target_w, target_h))
+        current_video = bg
     
     final_video: Any = current_video
     
@@ -63,29 +61,51 @@ def __basic_effects(
         
         caption_clip = TextClip(
             text=caption_text,
-            font_size=42,
+            font_size=48,
             color='white',
             stroke_color='black',
-            stroke_width=2,
+            stroke_width=4,
+            method='caption',
+            size=(target_w - 100, None),
             duration=min(duration, 5)
-        ).with_position(('center', target_h - 200))
+        ).with_position(('center', target_h - 300))
         
-        final_video = CompositeVideoClip([final_video, caption_clip])
+        shadow_clip = TextClip(
+            text=caption_text,
+            font_size=48,
+            color='black',
+            method='caption',
+            size=(target_w - 100, None),
+            duration=min(duration, 5)
+        ).with_position(('center', target_h - 298))
+        
+        final_video = CompositeVideoClip([final_video, shadow_clip, caption_clip])
     
     title_attr = getattr(short, 'title', None)
     if title_attr:
-        title_text = title_attr[:50]
+        title_text = title_attr[:40]
+        
+        title_bg = TextClip(
+            text=title_text,
+            font_size=40,
+            color='black',
+            method='caption',
+            size=(target_w - 80, None),
+            duration=2.0
+        ).with_position(('center', 152))
+        
         title_clip = TextClip(
             text=title_text,
-            font_size=36,
+            font_size=40,
             color='white',
-            bg_color='black',
             stroke_color='black',
-            stroke_width=1,
-            duration=1.5
-        ).with_position(('center', 120))
+            stroke_width=3,
+            method='caption',
+            size=(target_w - 80, None),
+            duration=2.0
+        ).with_position(('center', 150))
         
-        final_video = CompositeVideoClip([final_video, title_clip])
+        final_video = CompositeVideoClip([final_video, title_bg, title_clip])
     
     log.info(f"Exporting video to {output_video}")
     
