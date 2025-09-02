@@ -1,7 +1,6 @@
 import logging
 from pathlib import Path
 from moviepy import VideoFileClip, TextClip, CompositeVideoClip
-from moviepy.video.fx import MultiplySpeed, Resize
 from typing import Any, Literal
 from shorts_creator.domain.models import Speech, YouTubeShort
 
@@ -22,7 +21,7 @@ def __basic_effects(
     
     speed_factor = 1.35
     try:
-        current_video = current_video.with_fx(MultiplySpeed, speed_factor)
+        current_video = current_video.with_speed_scaled(speed_factor)
         log.info(f"Applied speed factor: {speed_factor}x")
     except Exception as e:
         log.warning(f"Speed change not supported: {e}")
@@ -40,20 +39,20 @@ def __basic_effects(
             scaled_h = target_h
             
             if scaled_w > target_w:
-                current_video = current_video.with_fx(Resize, (scaled_w, scaled_h))
+                current_video = current_video.resized((scaled_w, scaled_h))
                 crop_x = (scaled_w - target_w) // 2
-                current_video = current_video.with_fx(current_video.crop, x1=crop_x, x2=crop_x + target_w)
+                current_video = current_video.cropped(x1=crop_x, x2=crop_x + target_w)
             else:
-                current_video = current_video.with_fx(Resize, (scaled_w, scaled_h))
-                bg = current_video.with_fx(Resize, (target_w, target_h))
+                current_video = current_video.resized((scaled_w, scaled_h))
+                bg = current_video.resized((target_w, target_h))
                 x_pos = (target_w - scaled_w) // 2
                 current_video = CompositeVideoClip([bg, current_video.with_position((x_pos, 0))])
         else:
-            current_video = current_video.with_fx(Resize, (target_w, target_h))
+            current_video = current_video.resized((target_w, target_h))
     else:
-        current_video = current_video.with_fx(Resize, (target_w, target_h))
+        current_video = current_video.resized((target_w, target_h))
     
-    final_video: Any = current_video.with_fx(Resize, (target_w, target_h))
+    final_video: Any = current_video.resized((target_w, target_h))
     
     if speech and hasattr(speech, 'transcript'):
         caption_text = getattr(speech, 'transcript', 'Caption')[:60]
