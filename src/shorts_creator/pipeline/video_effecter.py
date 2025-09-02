@@ -20,11 +20,8 @@ def __basic_effects(
     current_video: Any = video
 
     speed_factor = 1.35
-    try:
-        current_video = current_video.speedx(speed_factor)
-        log.info(f"Applied speed factor: {speed_factor}x")
-    except Exception as e:
-        log.warning(f"Speed change not supported: {e}")
+    current_video = current_video.fl_time(lambda t: t/speed_factor, apply_to=['mask', 'audio'])
+    log.info(f"Applied speed factor using time mapping: {speed_factor}x")
 
     original_w, original_h = current_video.size
     target_w, target_h = 1080, 1920
@@ -185,24 +182,20 @@ def __basic_effects(
         codec="libx264",
         audio_codec="aac",
         fps=30,
-        preset="medium",
+        preset="fast",
+        threads=4,
+        verbose=False,
+        logger=None,
         ffmpeg_params=[
-            "-profile:v",
-            "high",
-            "-level",
-            "4.0",
-            "-pix_fmt",
-            "yuv420p",
-            "-b:v",
-            "15M",
-            "-maxrate",
-            "20M",
-            "-bufsize",
-            "30M",
-            "-b:a",
-            "320k",
-            "-ar",
-            "48000",
+            "-profile:v", "high",
+            "-level", "4.0", 
+            "-pix_fmt", "yuv420p",
+            "-b:v", "12M",
+            "-maxrate", "15M", 
+            "-bufsize", "20M",
+            "-b:a", "256k",
+            "-ar", "48000",
+            "-movflags", "+faststart"
         ],
     )
 
