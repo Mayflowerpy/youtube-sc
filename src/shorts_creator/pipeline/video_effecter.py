@@ -21,7 +21,7 @@ def __basic_effects(
     
     speed_factor = 1.35
     try:
-        current_video = current_video.with_speed_scaled(speed_factor)
+        current_video = current_video.speedx(speed_factor)
         log.info(f"Applied speed factor: {speed_factor}x")
     except Exception as e:
         log.warning(f"Speed change not supported: {e}")
@@ -33,26 +33,27 @@ def __basic_effects(
     target_ratio = target_w / target_h
     
     if original_ratio > target_ratio:
-        if original_h >= target_h:
-            scale_factor = target_h / original_h
-            scaled_w = int(original_w * scale_factor)
-            scaled_h = target_h
-            
-            if scaled_w > target_w:
-                current_video = current_video.resized((scaled_w, scaled_h))
-                crop_x = (scaled_w - target_w) // 2
-                current_video = current_video.cropped(x1=crop_x, x2=crop_x + target_w)
-            else:
-                current_video = current_video.resized((scaled_w, scaled_h))
-                bg = current_video.resized((target_w, target_h))
-                x_pos = (target_w - scaled_w) // 2
-                current_video = CompositeVideoClip([bg, current_video.with_position((x_pos, 0))])
+        scale_factor = target_h / original_h
+        scaled_w = int(original_w * scale_factor)
+        current_video = current_video.resized((scaled_w, target_h))
+        
+        if scaled_w > target_w:
+            crop_x = (scaled_w - target_w) // 2
+            current_video = current_video.cropped(x1=crop_x, x2=crop_x + target_w)
         else:
             current_video = current_video.resized((target_w, target_h))
     else:
-        current_video = current_video.resized((target_w, target_h))
+        scale_factor = target_w / original_w
+        scaled_h = int(original_h * scale_factor)
+        current_video = current_video.resized((target_w, scaled_h))
+        
+        if scaled_h > target_h:
+            crop_y = (scaled_h - target_h) // 2
+            current_video = current_video.cropped(y1=crop_y, y2=crop_y + target_h)
+        else:
+            current_video = current_video.resized((target_w, target_h))
     
-    final_video: Any = current_video.resized((target_w, target_h))
+    final_video: Any = current_video
     
     if speech and hasattr(speech, 'transcript'):
         caption_text = getattr(speech, 'transcript', 'Caption')[:60]
