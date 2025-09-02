@@ -370,3 +370,142 @@ This document defines **must/should** requirements for producing fast, legible, 
 * If ASR confidence < **0.8** on a segment, keep captions but mark with lighter emphasis; never skip.
 * If smart crop cannot keep both facecam and focal UI, **prioritize focal UI**, downscale and move facecam.
 * If readability falls below threshold (small text), force **pillarbox fill** and **no additional zoom** to avoid softness.
+
+# Mouse-Following Dynamic Crop Strategy
+
+**Goal:** Create engaging YouTube Shorts that dynamically follow the presenter's mouse cursor, intelligently cropping and panning a 1920×1080 screen recording to 1080×1920 while keeping the mouse focus area always visible and centered.
+
+---
+
+## Concept
+
+Instead of static cropping or letterboxing, this strategy tracks mouse movement throughout the video and creates a "smart camera" that:
+1. **Follows the cursor** - keeps mouse position in optimal viewing area
+2. **Smooth transitions** - pans/zooms gradually between focus areas  
+3. **Predictive framing** - anticipates where user will move next
+4. **Content-aware** - avoids cutting off important UI elements
+
+---
+
+## Technical Requirements
+
+### 1) Mouse Tracking (MUST)
+* **Cursor detection**: Extract mouse coordinates for every frame using computer vision
+* **Movement analysis**: Calculate velocity, acceleration, and direction vectors
+* **Focus zones**: Define 3 priority areas in 1080×1920 frame:
+  - **Primary zone**: Center 60% (optimal viewing)
+  - **Secondary zone**: Outer 30% (acceptable but will trigger reframe)
+  - **Edge zone**: Outer 10% (immediate reframe required)
+
+### 2) Dynamic Cropping Algorithm (MUST)
+* **Viewport calculation**: 1080×1920 crop window within 1920×1080 source
+* **Smooth panning**: Use easing functions (ease-out) over 12-20 frames
+* **Zoom levels**: 3 discrete zoom levels based on mouse activity:
+  - **1.0x**: Full screen context when mouse is idle
+  - **1.2x**: Medium zoom during moderate activity  
+  - **1.4x**: Close zoom during precise work (drawing, coding)
+* **Boundary constraints**: Never crop beyond source video edges
+
+### 3) Motion Prediction (SHOULD)
+* **Velocity-based**: Predict cursor destination 0.5-1.0s ahead
+* **Pre-positioning**: Start panning before cursor reaches edge zones
+* **Activity detection**: Distinguish between:
+  - **Transit movement** (moving to new area) → pan quickly
+  - **Work movement** (detailed interaction) → zoom in, minimal panning
+  - **Idle state** (no movement >2s) → zoom out for context
+
+### 4) Content Preservation (MUST)
+* **UI element detection**: Use OCR/CV to identify important text, buttons, diagrams
+* **Smart boundaries**: Avoid cropping through:
+  - Text blocks mid-sentence
+  - UI component boundaries  
+  - Diagram connections
+  - Code function definitions
+* **Minimum visibility**: Ensure 80% of active UI elements remain visible
+
+### 5) Smooth Cinematography (MUST)
+* **Easing functions**: All camera movements use cinematic easing curves
+* **Maximum pan speed**: Never exceed 15% of frame width per second
+* **Stabilization**: Ignore micro-movements (<5 pixels) to avoid jitter
+* **Transition timing**: 
+  - **Quick transitions**: 8-12 frames (for following mouse)
+  - **Context transitions**: 20-30 frames (for zoom level changes)
+
+### 6) Engagement Features (SHOULD)
+* **Cursor highlighting**: Add subtle glow/halo during important actions
+* **Zoom indicators**: Brief scale animation when zoom level changes
+* **Focus trails**: Subtle motion blur trail behind fast mouse movements
+* **Click emphasis**: Temporary zoom-in (110%) on mouse clicks
+
+---
+
+## Implementation Strategy
+
+### Phase 1: Mouse Detection
+```python
+# Extract cursor position for each frame
+def extract_mouse_coordinates(video_path) -> List[Tuple[int, int, float]]:
+    # Returns [(x, y, timestamp), ...] for entire video
+    pass
+```
+
+### Phase 2: Motion Analysis  
+```python
+# Analyze movement patterns and predict focus areas
+def analyze_mouse_motion(coordinates) -> MotionData:
+    # Calculate velocity, acceleration, activity zones
+    pass
+```
+
+### Phase 3: Dynamic Crop Calculation
+```python
+# Generate crop coordinates for each frame
+def calculate_dynamic_crop(motion_data, frame_size) -> List[CropWindow]:
+    # Returns crop coordinates with smooth transitions
+    pass
+```
+
+### Phase 4: Video Rendering
+```python
+# Apply dynamic cropping with smooth transitions
+def render_mouse_following_video(source, crop_data) -> VideoClip:
+    # Create smooth panning/zooming video
+    pass
+```
+
+---
+
+## Tunable Parameters
+
+* `mouse_follow_sensitivity = 0.8` (0=static, 1=instant follow)
+* `prediction_lookahead = 0.75` (seconds to predict ahead)
+* `zoom_idle_threshold = 2.0` (seconds before zoom out)
+* `pan_max_speed = 0.15` (fraction of frame per second)
+* `focus_zone_primary = 0.6` (center zone size)
+* `transition_frames_quick = 10`
+* `transition_frames_context = 25`
+* `cursor_highlight_radius = 32` (pixels)
+
+---
+
+## Fallback Behavior
+
+* **No cursor detected**: Fall back to basic_effects strategy
+* **Cursor at edge**: Prioritize keeping cursor visible over smooth motion
+* **Rapid movement**: Increase pan speed but maintain easing
+* **Content collision**: Pause panning until safe crop area available
+
+---
+
+## Expected Benefits
+
+* ✅ **Higher engagement**: Dynamic movement keeps viewers focused
+* ✅ **Better comprehension**: Always shows what presenter is pointing to  
+* ✅ **Professional feel**: Cinematic camera work vs static crops
+* ✅ **Content preservation**: Intelligent cropping protects important elements
+* ✅ **Mobile optimization**: Perfect 9:16 framing without content loss
+
+---
+
+## Strategy Name
+`mouse_following_crop` - to be implemented as new EffectsStrategy option
