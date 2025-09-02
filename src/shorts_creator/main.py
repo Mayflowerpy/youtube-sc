@@ -28,7 +28,7 @@ async def main():
         settings.video_path,
         settings.data_dir / "audios/extracted_audio.mp3",
         refresh=settings.refresh,
-        duration_seconds=300,
+        duration_seconds=60,
     )
 
     log.info(f"Audio extracted to {audio_file}")

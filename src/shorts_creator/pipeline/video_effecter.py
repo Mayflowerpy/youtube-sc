@@ -128,31 +128,55 @@ def __basic_effects(
                 [final_video, caption_border, caption_bg, fallback_caption]
             )
 
-    title_attr = getattr(short, "title", None)
-    if title_attr:
-        title_text = title_attr[:40]
-
-        title_bg = TextClip(
-            text=title_text,
-            font_size=40,
-            color="black",
-            method="caption",
-            size=(target_w - 80, None),
-            duration=2.0,
-        ).with_position(("center", 152))
-
-        title_clip = TextClip(
-            text=title_text,
-            font_size=40,
-            color="white",
-            stroke_color="black",
-            stroke_width=3,
-            method="caption",
-            size=(target_w - 80, None),
-            duration=2.0,
-        ).with_position(("center", 150))
-
-        final_video = CompositeVideoClip([final_video, title_bg, title_clip])
+    video_duration = getattr(final_video, "duration", 30)
+    if video_duration is None:
+        video_duration = 30
+    
+    from moviepy import ColorClip
+    
+    title_text = "Test YouTube Video"
+    
+    title_border = (
+        ColorClip(
+            size=(target_w - 60, 100),
+            color=(255, 20, 147),
+            duration=min(3.0, video_duration),
+        )
+        .with_opacity(1.0)
+        .with_position(("center", 80))
+    )
+    
+    title_bg = (
+        ColorClip(
+            size=(target_w - 70, 90),
+            color=(30, 30, 30),
+            duration=min(3.0, video_duration),
+        )
+        .with_opacity(0.95)
+        .with_position(("center", 85))
+    )
+    
+    title_shadow = TextClip(
+        text=title_text,
+        font_size=48,
+        color="black",
+        method="caption",
+        size=(target_w - 100, None),
+        duration=min(3.0, video_duration),
+    ).with_position(("center", 122))
+    
+    title_clip = TextClip(
+        text=title_text,
+        font_size=48,
+        color="#FF1493",
+        stroke_color="white",
+        stroke_width=2,
+        method="caption",
+        size=(target_w - 100, None),
+        duration=min(3.0, video_duration),
+    ).with_position(("center", 120))
+    
+    final_video = CompositeVideoClip([final_video, title_border, title_bg, title_shadow, title_clip])
 
     log.info(f"Exporting video to {output_video}")
 
