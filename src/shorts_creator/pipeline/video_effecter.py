@@ -20,8 +20,21 @@ def __basic_effects(
     current_video: Any = video
 
     speed_factor = 1.35
-    current_video = current_video.fl_time(lambda t: t/speed_factor, apply_to=['mask', 'audio'])
-    log.info(f"Applied speed factor using time mapping: {speed_factor}x")
+    try:
+        def time_transform(get_frame, t):
+            return get_frame(t * speed_factor)
+        
+        current_video = current_video.fl(time_transform, apply_to=['mask'])
+        if current_video.audio is not None:
+            current_video = current_video.with_audio(current_video.audio.fl(lambda gf, t: gf(t * speed_factor), apply_to=[]))
+        
+        new_duration = current_video.duration / speed_factor
+        current_video = current_video.with_duration(new_duration)
+        
+        log.info(f"Applied speed factor with proper frame sampling: {speed_factor}x")
+    except Exception as e:
+        log.warning(f"Speed change failed: {e}")
+        log.info("Continuing without speed change")
 
     original_w, original_h = current_video.size
     target_w, target_h = 1080, 1920
@@ -54,126 +67,34 @@ def __basic_effects(
 
     final_video: Any = current_video
 
-    if speech and hasattr(speech, "segments"):
-        from moviepy import ColorClip
-
-        video_duration = getattr(final_video, "duration", 30)
-        if video_duration is None:
-            video_duration = 30
-
-        caption_border = (
-            ColorClip(
-                size=(target_w - 40, 130),
-                color=(255, 215, 0),
-                duration=video_duration,
-            )
-            .with_opacity(1.0)
-            .with_position(("center", target_h - 180))
-        )
-
-        caption_bg = (
-            ColorClip(
-                size=(target_w - 50, 120), color=(20, 20, 20), duration=video_duration
-            )
-            .with_opacity(0.95)
-            .with_position(("center", target_h - 175))
-        )
-
-        caption_clips = []
-        for segment in speech.segments:
-            if (
-                hasattr(segment, "text")
-                and hasattr(segment, "start_time")
-                and hasattr(segment, "end_time")
-            ):
-                segment_text = segment.text.strip()
-                start_time = float(segment.start_time)
-                end_time = float(segment.end_time)
-                segment_duration = end_time - start_time
-
-                if segment_text and segment_duration > 0:
-                    caption_clip = (
-                        TextClip(
-                            text=segment_text,
-                            font_size=42,
-                            color="#FFE135",
-                            method="caption",
-                            size=(target_w - 80, None),
-                            duration=segment_duration,
-                        )
-                        .with_position(("center", target_h - 145))
-                        .with_start(start_time)
-                    )
-
-                    caption_clips.append(caption_clip)
-
-        if caption_clips:
-            final_video = CompositeVideoClip(
-                [final_video, caption_border, caption_bg] + caption_clips
-            )
-        else:
-            fallback_caption = TextClip(
-                text="Caption",
-                font_size=42,
-                color="#FFE135",
-                method="caption",
-                size=(target_w - 80, None),
-                duration=5,
-            ).with_position(("center", target_h - 145))
-
-            final_video = CompositeVideoClip(
-                [final_video, caption_border, caption_bg, fallback_caption]
-            )
 
     video_duration = getattr(final_video, "duration", 30)
     if video_duration is None:
         video_duration = 30
     
-    from moviepy import ColorClip
-    
     title_text = "Test YouTube Video"
-    
-    title_border = (
-        ColorClip(
-            size=(target_w - 60, 100),
-            color=(255, 20, 147),
-            duration=min(3.0, video_duration),
-        )
-        .with_opacity(1.0)
-        .with_position(("center", 80))
-    )
-    
-    title_bg = (
-        ColorClip(
-            size=(target_w - 70, 90),
-            color=(30, 30, 30),
-            duration=min(3.0, video_duration),
-        )
-        .with_opacity(0.95)
-        .with_position(("center", 85))
-    )
     
     title_shadow = TextClip(
         text=title_text,
-        font_size=48,
+        font_size=52,
         color="black",
         method="caption",
         size=(target_w - 100, None),
-        duration=min(3.0, video_duration),
-    ).with_position(("center", 122))
+        duration=video_duration,
+    ).with_position(("center", 82))
     
     title_clip = TextClip(
         text=title_text,
-        font_size=48,
-        color="#FF1493",
-        stroke_color="white",
-        stroke_width=2,
+        font_size=52,
+        color="white",
+        stroke_color="black",
+        stroke_width=4,
         method="caption",
         size=(target_w - 100, None),
-        duration=min(3.0, video_duration),
-    ).with_position(("center", 120))
+        duration=video_duration,
+    ).with_position(("center", 80))
     
-    final_video = CompositeVideoClip([final_video, title_border, title_bg, title_shadow, title_clip])
+    final_video = CompositeVideoClip([final_video, title_shadow, title_clip])
 
     log.info(f"Exporting video to {output_video}")
 
