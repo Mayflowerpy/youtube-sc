@@ -111,3 +111,78 @@ class TextEffect(VideoEffect):
         )
 
         return [v, a]
+
+
+class PixelateFilterStartVideoEffect(VideoEffect):
+    def __init__(self, pixelation_level: int = 20, duration: float = 3.0):
+        self.pixelation_level = pixelation_level
+        self.duration = duration
+
+    def apply(self, video_stream: Stream) -> list[Stream]:
+        import ffmpeg
+        v = video_stream.video
+        a = video_stream.audio
+
+        # Create pixelate effect by splitting video into two parts:
+        # 1. Pixelated part for the first duration seconds
+        # 2. Normal part for the rest
+        
+        # Create pixelated version (scale down then up)
+        v_pixelated = v.filter(
+            "scale", f"iw/{self.pixelation_level}", f"ih/{self.pixelation_level}"
+        ).filter(
+            "scale", f"iw*{self.pixelation_level}", f"ih*{self.pixelation_level}", flags="neighbor"
+        )
+        
+        # Trim pixelated version to duration and normal version from duration onwards
+        v_pixelated_part = v_pixelated.filter("trim", start=0, end=self.duration).filter("setpts", "PTS-STARTPTS")
+        v_normal_part = v.filter("trim", start=self.duration).filter("setpts", "PTS-STARTPTS")
+        
+        # Concatenate the two parts using ffmpeg.concat
+        v = ffmpeg.concat(v_pixelated_part, v_normal_part, v=1, a=0)
+
+        return [v, a]
+
+class BlurFilterStartVideoEffect(VideoEffect):
+    def __init__(self, blur_strength: int = 20, duration: float = 1.0, steps: int = 10):
+        self.blur_strength = blur_strength
+        self.duration = duration
+        self.steps = steps  # Number of blur steps for gradual decrease
+
+    def apply(self, video_stream: Stream) -> list[Stream]:
+        import ffmpeg
+        v = video_stream.video
+        a = video_stream.audio
+
+        # Create gradual blur decrease by creating multiple segments with different blur levels
+        step_duration = self.duration / self.steps
+        segments = []
+        
+        for i in range(self.steps):
+            start_time = i * step_duration
+            end_time = (i + 1) * step_duration
+            
+            # Calculate blur strength for this step (decreases linearly)
+            blur_for_step = self.blur_strength * (1 - i / self.steps)
+            
+            if blur_for_step > 0:
+                # Apply blur and trim to step duration
+                segment = v.filter("boxblur", blur_for_step).filter(
+                    "trim", start=start_time, end=end_time
+                ).filter("setpts", "PTS-STARTPTS")
+            else:
+                # No blur for this segment
+                segment = v.filter(
+                    "trim", start=start_time, end=end_time
+                ).filter("setpts", "PTS-STARTPTS")
+            
+            segments.append(segment)
+        
+        # Add the remaining part of the video (after blur duration) without blur
+        remaining_part = v.filter("trim", start=self.duration).filter("setpts", "PTS-STARTPTS")
+        segments.append(remaining_part)
+        
+        # Concatenate all segments
+        v = ffmpeg.concat(*segments, v=1, a=0)
+
+        return [v, a]
