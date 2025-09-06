@@ -37,10 +37,19 @@ def _write_output_video(video_streams: list[ffmpeg.nodes.Stream], output_file: P
     ).overwrite_output().run()
 
 
+def _delete_old_files(old_video_files: list[Path]):
+    for file in old_video_files:
+        try:
+            file.unlink()
+        except Exception as e:
+            logger.warning(f"Failed to delete old video file {file}: {e}")
+
+
 def apply_effects(
     video_path: Path,
     strategy: VideoEffectsStrategy,
     output_dir: Path,
+    debug: bool = False,
 ) -> Path:
     video_name, video_ext = video_path.name.split(".")
     execution_dir = output_dir / str(datetime.now())
@@ -48,7 +57,14 @@ def apply_effects(
 
     curr_video_path = video_path
 
-    for i, effect in enumerate(strategy.effects):
+    effects = strategy.create_effects()
+
+    output_file = None
+    old_video_files = []
+
+    for i, effect in enumerate(effects):
+        if output_file is not None:
+            old_video_files.append(output_file)
         video_stream = ffmpeg.input(str(curr_video_path), fflags="+genpts")
 
         logger.info(
@@ -60,6 +76,9 @@ def apply_effects(
         video_stream = effect.apply(video_stream)
         _write_output_video(video_stream, output_file)
         curr_video_path = output_file
+
+    if not debug:
+        _delete_old_files(old_video_files)
 
     return curr_video_path
 
@@ -76,4 +95,5 @@ if __name__ == "__main__":
         Path(args.input_file),
         VideoEffectsStrategy.BASIC,
         Path(args.output_dir),
+        debug=True,
     )
