@@ -16,7 +16,7 @@ class AppSettings(BaseSettings):
     duration_seconds: int | None = None
     short_duration_seconds: int = 60
     speed_factor: float = 1.35
-    whisper_model_size: Literal["medium", "large"] = "large"
+    whisper_model_size: Literal["medium", "large"] = "medium"
 
     class Config:
         env_file = ".env"
