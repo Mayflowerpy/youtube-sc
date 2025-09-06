@@ -4,22 +4,23 @@ from faster_whisper import WhisperModel
 from tqdm import tqdm
 from shorts_creator.domain.models import Speech, SpeechSegment
 from shorts_creator.pipeline import storage
+from shorts_creator.settings.settings import AppSettings
 
 log = logging.getLogger(__name__)
 
 
 def convert_speech_to_text(
-    audio_file: Path, output_file: Path, refresh: bool = True
+    audio_file: Path, output_file: Path, settings: AppSettings
 ) -> Speech:
-    if output_file.exists() and not refresh:
+    if output_file.exists() and not settings.refresh:
         return Speech.model_validate_json(storage.read(output_file))
 
-    model_size = "medium"
-
-    log.info(f"Loading faster-whisper model: {model_size}")
+    log.info(f"Loading faster-whisper model: {settings.whisper_model_size}")
 
     try:
-        model = WhisperModel(model_size, device="cpu", compute_type="int8")
+        model = WhisperModel(
+            settings.whisper_model_size, device="cpu", compute_type="int8"
+        )
 
         log.info(f"Transcribing audio from {audio_file}")
 

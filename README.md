@@ -25,12 +25,12 @@ A powerful tool to automatically convert long-form videos into engaging YouTube 
 
 ### Install the Package
 
-Clone the repository and install in development mode:
+Clone the repository and install as a global tool:
 
 ```bash
 git clone git@github.com:vitalii-honchar/youtube-shorts-creator.git
 cd youtube-shorts-creator
-uv pip install -e .
+uv tool install -e .
 ```
 
 This creates a global `shorts-creator` command you can run from anywhere.

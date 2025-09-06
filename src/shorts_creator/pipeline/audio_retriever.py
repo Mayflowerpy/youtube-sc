@@ -17,9 +17,13 @@ def retrieve_audio(
         kwargs = {}
         if duration_seconds:
             kwargs["t"] = duration_seconds
+
+        log.info(
+            f"Extracting audio: video = {video_path}, output = {output_file}, duration = {duration_seconds or -1}s"
+        )
         ffmpeg.input(str(video_path)).output(
             str(output_file), acodec="libmp3lame", **kwargs
-        ).overwrite_output().run(capture_stdout=True, capture_stderr=True)
+        ).overwrite_output().run(quiet=True)
 
     except Exception as e:
         log.error(

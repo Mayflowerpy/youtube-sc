@@ -91,28 +91,22 @@ def main():
 
     audio_file = audio_retriever.retrieve_audio(
         settings.video_path,
-        settings.data_dir / "audios/extracted_audio.mp3",
+        settings.data_dir / "extracted_audio.mp3",
         refresh=settings.refresh,
         duration_seconds=settings.duration_seconds,
     )
 
     log.info(f"Audio extracted to {audio_file}")
     speech = speech_to_text.convert_speech_to_text(
-        audio_file, settings.data_dir / "text/speech.json", refresh=settings.refresh
+        audio_file, settings.data_dir / "speech.json", settings=settings
     )
 
     shorts = shorts_generator.generate_youtube_shorts_recommendations(speech, settings)
 
-    storage.save(
-        settings.data_dir / "shorts/shorts.json", shorts.model_dump_json(indent=2)
-    )
-
-    # Create video shorts
-    videos_output_dir = settings.data_dir / "shorts/videos"
-    videos_output_dir.mkdir(parents=True, exist_ok=True)
+    storage.save(settings.data_dir / "shorts.json", shorts.model_dump_json(indent=2))
 
     # Process all shorts with progress tracking
-    process_shorts_with_progress(shorts, settings, videos_output_dir)
+    process_shorts_with_progress(shorts, settings, settings.data_dir)
 
     log.info("Shorts creation completed!")
 

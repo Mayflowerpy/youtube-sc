@@ -59,12 +59,7 @@ def cut_video_segment_with_effects(
             movflags="+faststart",
         )
 
-        ffmpeg.run(
-            output_stream,
-            overwrite_output=True,
-            capture_stdout=True,
-            capture_stderr=True,
-        )
+        ffmpeg.run(output_stream, quiet=True)
 
         return output_video
 
