@@ -48,6 +48,20 @@ def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts:
     - Before/after scenarios or transformations
     - Clear value proposition for viewers
     
+    TITLE GUIDELINES:
+    - Maximum 30 characters - be concise and punchy
+    - Start with action words or numbers when possible (e.g., "Fix", "Build", "3 Ways")
+    - Focus on the main benefit or outcome
+    - Avoid jargon - use simple, clear language
+    - Create curiosity or urgency
+    
+    SUBSCRIBE SUBTITLE GUIDELINES:
+    - Maximum 50 characters - encourage subscription
+    - Be specific about value (e.g., "Subscribe for more coding tips!")
+    - Use action words like "Subscribe", "Follow", "Join"
+    - Mention what viewers will get by subscribing
+    - Keep it friendly and enthusiastic
+    
     CRITICAL REQUIREMENTS:
     - Each short must be 30 seconds or less in duration
     - Maximum {max_shorts} shorts total
@@ -56,11 +70,13 @@ def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts:
     - Rank by quality - return the best segments first
     
     For each identified segment range, provide:
-    1. start_segment_index: The starting segment number (0-based)
-    2. end_segment_index: The ending segment number (0-based, inclusive)
-    3. The full transcript text for those segments combined
-    4. Reasoning why this range would work as a short (focus on hook, engagement, and completeness)
-    5. Estimated duration (must be ≤30 seconds) and key topics
+    1. title: A catchy, engaging title for the short (maximum 30 characters) that captures the key value or hook
+    2. subscribe_subtitle: An encouraging call-to-action subtitle to get viewers to subscribe (maximum 50 characters)
+    3. start_segment_index: The starting segment number (0-based)
+    4. end_segment_index: The ending segment number (0-based, inclusive)
+    5. The full transcript text for those segments combined
+    6. Reasoning why this range would work as a short (focus on hook, engagement, and completeness)
+    7. Estimated duration (must be ≤30 seconds) and key topics
     
     Note: There are {total_segments} segments total (numbered 0 to {total_segments-1}).
     Each segment includes timing information to help you estimate durations.

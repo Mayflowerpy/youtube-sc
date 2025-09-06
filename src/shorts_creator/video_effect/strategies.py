@@ -4,22 +4,22 @@ from shorts_creator.video_effect.video_effect import (
     IncreaseVideoSpeedEffect,
     VideoRatioConversionEffect,
     TextEffect,
-    PixelateFilterStartVideoEffect,
     BlurFilterStartVideoEffect,
 )
+from shorts_creator.domain.models import YouTubeShort
 from typing import Sequence
 
 
 class VideoEffectsStrategy(Enum):
     BASIC = ("basic",)
 
-    def create_effects(self) -> Sequence[VideoEffect]:
+    def create_effects(self, short: YouTubeShort) -> Sequence[VideoEffect]:
         match self:
             case VideoEffectsStrategy.BASIC:
                 return [
                     VideoRatioConversionEffect(target_w=1080, target_h=1920),
-                    TextEffect(text="New Video", text_align="top"),
-                    TextEffect(text="SUBSCRIBE ON ME", text_align="bottom"),
+                    TextEffect(text=short.title, text_align="top"),
+                    TextEffect(text=short.subscribe_subtitle, text_align="bottom"),
                     BlurFilterStartVideoEffect(blur_strength=20, duration=1.0),
                     IncreaseVideoSpeedEffect(speed_factor=1.5, fps=30),
                 ]

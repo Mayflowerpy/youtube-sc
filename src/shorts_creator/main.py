@@ -10,6 +10,8 @@ from shorts_creator.pipeline import (
     video_cutter,
     video_effecter,
 )
+from shorts_creator.video_effect import video_effect_service
+from shorts_creator.video_effect.strategies import VideoEffectsStrategy
 from shorts_creator.settings.settings import parse_args
 
 
@@ -56,16 +58,11 @@ async def main():
         )
         log.info(f"Created short video {i+1}: {video_path}")
 
-        # speech = speech_to_text.convert_speech_to_text(
-        #     audio_file, videos_output_dir / f"speech_{i+1}.json"
-        # )
-
-        # 2) Apply engaging effects using MoviePy (if available)
-        fx_output = videos_output_dir / (video_path.stem + "_fx" + video_path.suffix)
-        final_path = video_effecter.apply_video_effects(
-            input_video=video_path,
-            output_video=fx_output,
-            strategy="basic_effects",
+        final_path = video_effect_service.apply_effects(
+            short,
+            video_path,
+            VideoEffectsStrategy.BASIC,
+            videos_output_dir,
         )
         log.info(f"Enhanced short video {i+1}: {final_path}")
 

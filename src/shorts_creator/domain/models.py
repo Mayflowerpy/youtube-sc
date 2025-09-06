@@ -22,6 +22,10 @@ class Speech(BaseModel):
 
 
 class YouTubeShort(BaseModel):
+    title: str = Field(description="Catchy title for the short (max 30 characters)")
+    subscribe_subtitle: str = Field(
+        description="Subtitle encouraging viewers to subscribe (max 50 characters)",
+    )
     start_segment_index: int = Field(
         description="Index of the starting segment (0-based)"
     )
