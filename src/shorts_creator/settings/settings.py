@@ -5,13 +5,13 @@ import argparse
 
 
 class AppSettings(BaseSettings):
-    openai_api_key: str = ""
+    openai_api_key: str
     openai_base_url: str = "https://openrouter.ai/api/v1"
     model_name: str = "openai/gpt-5-mini"
-    data_dir: Path = Path("data")
+    data_dir: Path = Path("shorts_creator")
     refresh: bool = False
-    video_path: Path = Path("data/videos/long_video.mp4")
-    shorts_number: int = 3
+    video_path: Path
+    shorts_number: int = 5
     duration_seconds: int | None = None
     short_duration_seconds: int = 60
     speed_factor: float = 1.35

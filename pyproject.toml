@@ -16,6 +16,9 @@ dependencies = [
     "tqdm>=4.67.1",
 ]
 
+[project.scripts]
+shorts-creator = "shorts_creator.main:main"
+
 [tool.setuptools]
 packages = ["shorts_creator"]
 package-dir = {"" = "src"}

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from pathlib import Path
 
@@ -82,11 +81,13 @@ def process_shorts_with_progress(shorts, settings, videos_output_dir):
     log.info("All shorts processing completed!")
 
 
-async def main():
+def main():
     settings = parse_args()
     log.info(
         f"Starting shorts creation: refresh={settings.refresh}, video = {settings.video_path}"
     )
+
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
 
     audio_file = audio_retriever.retrieve_audio(
         settings.video_path,
@@ -117,4 +118,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
