@@ -5,11 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Module",
+            "name": "Shorts Creator",
             "type": "debugpy",
             "request": "launch",
             "module": "shorts_creator.main",
             "args": ["-v", "data/videos/long_video.mp4", "-s", "1"]
+        },
+         {
+            "name": "Video Effecter",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "shorts_creator.pipeline.video_effecter",
+            "args": ["data/shorts/videos/short_1_1s-29s.mp4", "data/shorts/videos/short_1_1s-29s_fx.mp4"]
         }
     ]
 }

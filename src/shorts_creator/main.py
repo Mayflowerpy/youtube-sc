@@ -65,8 +65,6 @@ async def main():
         final_path = video_effecter.apply_video_effects(
             input_video=video_path,
             output_video=fx_output,
-            short=short,
-            speech=speech,
             strategy="basic_effects",
         )
         log.info(f"Enhanced short video {i+1}: {final_path}")
