@@ -266,9 +266,9 @@ def __basic_effects(
         speed_factor = 1.35
 
         video, audio = _apply_speed_scaling(input_stream, speed_factor)
-        # video = _apply_aspect_ratio_conversion(
-        #     video, conversion_info, target_w, target_h
-        # )
+        video = _apply_aspect_ratio_conversion(
+            video, conversion_info, target_w, target_h
+        )
         # video = _apply_pixelate_transition(video, 3.0)
 
         title_text = "NEW VIDEO"
