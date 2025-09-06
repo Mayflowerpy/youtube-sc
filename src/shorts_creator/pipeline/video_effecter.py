@@ -62,8 +62,16 @@ def _calculate_aspect_ratio_conversion(
 
 
 def _apply_speed_scaling(input_stream, speed_factor: float):
-    video = input_stream.video.filter("setpts", f"PTS/{speed_factor}")
-    audio = input_stream.audio.filter("atempo", speed_factor)
+    video = input_stream.video.filter(
+        "setpts", f"(PTS-STARTPTS)/{speed_factor}"
+    ).filter("fps", fps=30)
+
+    audio = (
+        input_stream.audio.filter("atrim", start=0)
+        .filter("asetpts", "PTS-STARTPTS")
+        .filter("atempo", speed_factor)
+    )
+
     return video, audio
 
 
@@ -107,10 +115,10 @@ def _detect_and_trim_grey_screen(input_video: Path):
 def _apply_pixelate_transition(video, duration: float):
     # Use geq filter for time-based pixelate effect that works with expressions
     return video.filter(
-        'geq',
-        lum=f'if(lt(t,{duration}), lum(floor(X/20)*20, floor(Y/20)*20), lum(X,Y))',
-        cb=f'if(lt(t,{duration}), cb(floor(X/20)*20, floor(Y/20)*20), cb(X,Y))', 
-        cr=f'if(lt(t,{duration}), cr(floor(X/20)*20, floor(Y/20)*20), cr(X,Y))'
+        "geq",
+        lum=f"if(lt(t,{duration}), lum(floor(X/20)*20, floor(Y/20)*20), lum(X,Y))",
+        cb=f"if(lt(t,{duration}), cb(floor(X/20)*20, floor(Y/20)*20), cb(X,Y))",
+        cr=f"if(lt(t,{duration}), cr(floor(X/20)*20, floor(Y/20)*20), cr(X,Y))",
     )
 
 
@@ -216,6 +224,8 @@ def _export_video(video, audio, output_path: Path):
         ar=48000,
         pix_fmt="yuv420p",
         preset="fast",
+        movflags="+faststart",
+        avoid_negative_ts="make_zero",
     )
 
     try:
@@ -256,10 +266,10 @@ def __basic_effects(
         speed_factor = 1.35
 
         video, audio = _apply_speed_scaling(input_stream, speed_factor)
-        video = _apply_aspect_ratio_conversion(
-            video, conversion_info, target_w, target_h
-        )
-        video = _apply_pixelate_transition(video, 3.0)
+        # video = _apply_aspect_ratio_conversion(
+        #     video, conversion_info, target_w, target_h
+        # )
+        # video = _apply_pixelate_transition(video, 3.0)
 
         title_text = "NEW VIDEO"
         title_duration = dimensions["duration"] / speed_factor
@@ -270,12 +280,12 @@ def __basic_effects(
         font_path = str(get_font_path("roboto-bold"))
 
         # Disable title and subscribe text to isolate black screen source
-        video = _apply_title_animation(
-            video, title_text, title_y_position, title_duration, font_path
-        )
-        video = _apply_static_subscribe_text(
-            video, subscribe_y_position, title_duration, font_path
-        )
+        # video = _apply_title_animation(
+        #     video, title_text, title_y_position, title_duration, font_path
+        # )
+        # video = _apply_static_subscribe_text(
+        #     video, subscribe_y_position, title_duration, font_path
+        # )
 
         _export_video(video, audio, output_video)
 
