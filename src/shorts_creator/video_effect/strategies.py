@@ -17,7 +17,7 @@ class VideoEffectsStrategy(Enum):
             BlurFilterStartVideoEffect(blur_strength=20, duration=1.0),
             # IncreaseVideoSpeedEffect(speed_factor=1.5, fps=30),
             # VideoRatioConversionEffect(target_w=1080, target_h=1920),
-            # PixelateFilterStartVideoEffect(pixelation_level=20, duration=3.0),
+            # PixelateFilterStartVideoEffect(pixelation_level=20, duration=1.0),
             # TextEffect(text="New Video", text_align="top"),
             # TextEffect(text="SUBSCRIBE ON ME", text_align="bottom"),
         ],

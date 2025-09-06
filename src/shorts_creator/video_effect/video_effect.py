@@ -114,32 +114,31 @@ class TextEffect(VideoEffect):
 
 
 class PixelateFilterStartVideoEffect(VideoEffect):
-    def __init__(self, pixelation_level: int = 20, duration: float = 3.0):
+    def __init__(self, pixelation_level: int = 20, duration: float = 1.0, steps: int = 10):
         self.pixelation_level = pixelation_level
         self.duration = duration
+        self.steps = steps  # Number of pixelation steps for gradual decrease
 
     def apply(self, video_stream: Stream) -> list[Stream]:
         import ffmpeg
         v = video_stream.video
         a = video_stream.audio
 
-        # Create pixelate effect by splitting video into two parts:
-        # 1. Pixelated part for the first duration seconds
-        # 2. Normal part for the rest
+        # Simple approach: apply pixelation to the entire video, then trim segments
+        # This avoids dimension mismatch issues by keeping all operations on the same base
         
-        # Create pixelated version (scale down then up)
+        # Get the first segment (pixelated start)
         v_pixelated = v.filter(
             "scale", f"iw/{self.pixelation_level}", f"ih/{self.pixelation_level}"
         ).filter(
             "scale", f"iw*{self.pixelation_level}", f"ih*{self.pixelation_level}", flags="neighbor"
-        )
+        ).filter("trim", start=0, end=self.duration).filter("setpts", "PTS-STARTPTS")
         
-        # Trim pixelated version to duration and normal version from duration onwards
-        v_pixelated_part = v_pixelated.filter("trim", start=0, end=self.duration).filter("setpts", "PTS-STARTPTS")
-        v_normal_part = v.filter("trim", start=self.duration).filter("setpts", "PTS-STARTPTS")
+        # Get the remaining part (normal quality)
+        v_normal = v.filter("trim", start=self.duration).filter("setpts", "PTS-STARTPTS")
         
-        # Concatenate the two parts using ffmpeg.concat
-        v = ffmpeg.concat(v_pixelated_part, v_normal_part, v=1, a=0)
+        # Concatenate the two parts
+        v = ffmpeg.concat(v_pixelated, v_normal, v=1, a=0)
 
         return [v, a]
 
