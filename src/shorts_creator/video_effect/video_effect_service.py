@@ -9,8 +9,10 @@ import argparse
 logger = getLogger(__name__)
 
 
-def _create_file_name(video_name: str, video_ext: str, effect: VideoEffect) -> str:
-    return f"{video_name}_{effect.__class__.__name__}.{video_ext}"
+def _create_file_name(
+    video_name: str, video_ext: str, effect: VideoEffect, index: int
+) -> str:
+    return f"{video_name}_{effect.__class__.__name__}_{index}.{video_ext}"
 
 
 def _write_output_video(video_streams: list[ffmpeg.nodes.Stream], output_file: Path):
@@ -46,13 +48,15 @@ def apply_effects(
 
     curr_video_path = video_path
 
-    for effect in strategy.effects:
+    for i, effect in enumerate(strategy.effects):
         video_stream = ffmpeg.input(str(curr_video_path), fflags="+genpts")
 
         logger.info(
             f"Applying effect: video_path = {curr_video_path}, effect = {effect}"
         )
-        output_file = execution_dir / _create_file_name(video_name, video_ext, effect)
+        output_file = execution_dir / _create_file_name(
+            video_name, video_ext, effect, i
+        )
         video_stream = effect.apply(video_stream)
         _write_output_video(video_stream, output_file)
         curr_video_path = output_file
