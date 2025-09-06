@@ -64,10 +64,12 @@ def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts:
     
     CRITICAL REQUIREMENTS:
     - Each short must be 30 seconds or less in duration
-    - Maximum {max_shorts} shorts total
-    - Find the BEST content available in this video, even if not perfect
-    - Return at least 1 short unless content is completely unsuitable (e.g., just silence, random noise, or completely incoherent)
+    - You MUST return EXACTLY {max_shorts} shorts - no more, no less
+    - If there are fewer than {max_shorts} high-quality segments, you must still find {max_shorts} segments by lowering your quality standards slightly
+    - Find the BEST available content, but prioritize meeting the exact count requirement
+    - Only return fewer than {max_shorts} shorts if the content is completely unsuitable (e.g., just silence, random noise, or completely incoherent)
     - Rank by quality - return the best segments first
+    - If you're struggling to find {max_shorts} distinct segments, you can use overlapping segments or split longer segments into smaller parts
     
     For each identified segment range, provide:
     1. title: A catchy, engaging title for the short (maximum 30 characters) that captures the key value or hook

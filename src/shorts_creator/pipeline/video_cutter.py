@@ -27,32 +27,32 @@ def cut_video_segment_with_effects(
     Effects and formatting to 9:16 are applied later in video_effecter.
     """
     try:
-        log.info(f"Cutting short segment: {start_time}s - {end_time}s")
 
         # Ensure output directory exists
         output_video.parent.mkdir(parents=True, exist_ok=True)
 
         # Accurate cut with black frame removal
         duration = end_time - start_time
-        
+
         # Use more precise seeking and add black frame detection
         input_stream = ffmpeg.input(str(input_video))
-        
+
         # Apply precise trimming with black frame removal
-        video = (
-            input_stream.video
-            .filter('trim', start=start_time, duration=duration)
-            .filter('setpts', 'PTS-STARTPTS')  # Reset timestamps to avoid black frames
-        )
-        
-        audio = (
-            input_stream.audio
-            .filter('atrim', start=start_time, duration=duration)
-            .filter('asetpts', 'PTS-STARTPTS')  # Reset audio timestamps
-        )
-        
+        video = input_stream.video.filter(
+            "trim", start=start_time, duration=duration
+        ).filter(
+            "setpts", "PTS-STARTPTS"
+        )  # Reset timestamps to avoid black frames
+
+        audio = input_stream.audio.filter(
+            "atrim", start=start_time, duration=duration
+        ).filter(
+            "asetpts", "PTS-STARTPTS"
+        )  # Reset audio timestamps
+
         output_stream = ffmpeg.output(
-            video, audio,
+            video,
+            audio,
             str(output_video),
             vcodec="libx264",
             acodec="aac",
@@ -66,7 +66,6 @@ def cut_video_segment_with_effects(
             capture_stderr=True,
         )
 
-        log.info(f"Cut video saved to {output_video}")
         return output_video
 
     except ffmpeg.Error as e:

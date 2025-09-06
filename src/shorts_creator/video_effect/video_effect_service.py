@@ -32,9 +32,7 @@ def _write_output_video(video_streams: list[ffmpeg.nodes.Stream], output_file: P
         "muxdelay": 0,
         "x264-params": "scenecut=0:open_gop=0:ref=1",
     }
-    ffmpeg.output(
-        *video_streams, str(output_file), **out_kwargs
-    ).run()
+    ffmpeg.output(*video_streams, str(output_file), **out_kwargs).run(quiet=True)
 
 
 def _delete_old_files(old_video_files: list[Path]):
@@ -65,10 +63,6 @@ def apply_effects(
         if output_file is not None:
             old_video_files.append(output_file)
         video_stream = ffmpeg.input(str(curr_video_path), fflags="+genpts")
-
-        logger.info(
-            f"Applying effect: video_path = {curr_video_path}, effect = {effect}"
-        )
         output_file = output_dir / _create_file_name(video_name, video_ext, effect, i)
         video_stream = effect.apply(video_stream)
         _write_output_video(video_stream, output_file)
