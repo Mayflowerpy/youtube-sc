@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a YouTube Shorts Creator project - a proof of concept for converting long YouTube videos into YouTube shorts. The project is in early development stage with a basic audio retrieval module.
+This is a YouTube Shorts Creator project - a production-ready tool for converting long YouTube videos into engaging YouTube shorts with AI-powered content analysis and professional video effects.
 
 ## Development Environment
 
@@ -25,17 +25,17 @@ uv add <package-name>
 # Remove dependency
 uv remove <package-name>
 
-# Run Python module
-uv run python -m src.audio_retriever.main
+# Install as global tool
+uv tool install -e .
 ```
 
 ### Running the Application
 ```bash
-# Run the main audio retriever module
-uv run python src/audio_retriever/main.py
+# After installation as global tool
+shorts-creator -v /path/to/video.mp4
 
-# Or as a module
-uv run python -m src.audio_retriever.main
+# Or run directly with uv
+uv run python -m shorts_creator.main -v /path/to/video.mp4
 ```
 
 ## Project Architecture
@@ -43,26 +43,47 @@ uv run python -m src.audio_retriever.main
 ### Directory Structure
 ```
 src/
-└── audio_retriever/          # Audio processing module
-    ├── __init__.py           # Empty package marker
-    └── main.py               # Main entry point with logging setup
+└── shorts_creator/
+    ├── domain/
+    │   └── models.py         # Pydantic models (Speech, YouTubeShort, etc.)
+    ├── pipeline/
+    │   ├── audio_retriever.py    # Audio extraction from video
+    │   ├── speech_to_text.py     # faster-whisper transcription
+    │   ├── shorts_generator.py   # AI-powered content analysis
+    │   ├── video_cutter.py       # Video segment extraction
+    │   └── storage.py            # File I/O utilities
+    ├── video_effect/
+    │   ├── video_effect.py       # Video effect classes
+    │   ├── video_effect_service.py # Effect application service
+    │   └── strategies.py         # Effect strategy patterns
+    ├── settings/
+    │   └── settings.py           # Configuration management
+    └── main.py                   # Main entry point
+poc/                              # Proof-of-concept experiments (not production code)
 ```
 
 ### Current Implementation
-- **Single Module**: `audio_retriever` - handles audio extraction/processing
-- **Logging**: Centralized logging configuration in main.py with INFO level and timestamp formatting
-- **Entry Point**: Basic stub that logs "Retrieve audio" message
+- **Full Pipeline**: Audio extraction → Transcription → AI analysis → Video processing
+- **AI Integration**: OpenAI/OpenRouter for content analysis and metadata generation
+- **Video Effects**: Professional ffmpeg-based video enhancement pipeline
+- **Console Script**: Global `shorts-creator` command via uv tool install
+- **Progress Tracking**: Real-time progress bars for all operations
+- **Configuration**: Environment variables and command-line arguments
 
-### Development Notes
-- The project uses modern Python tooling (uv, pyproject.toml)
-- Currently minimal implementation - likely needs significant expansion
-- No testing framework configured yet
-- No dependencies specified in pyproject.toml yet
+### Key Technologies
+- **faster-whisper**: High-accuracy speech transcription
+- **OpenAI API**: Content analysis and YouTube metadata generation
+- **FFmpeg**: Professional video processing and encoding
+- **Pydantic**: Type-safe configuration and data models
+- **tqdm**: Progress tracking and user feedback
 
 ## Code Conventions
-- Standard Python package structure
+- Standard Python package structure with domain/pipeline separation
+- Pydantic models for all data structures and configuration
 - Logging configured at INFO level with timestamp formatting
 - Module-level logger instances using `__name__`
+- Type hints and modern Python 3.13 features
+- Environment-based configuration with .env support
 
 # YouTube Shorts Clip Effects — Requirements (Software Engineering Channel)
 

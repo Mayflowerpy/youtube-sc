@@ -12,6 +12,10 @@ A powerful tool to automatically convert long-form videos into engaging YouTube 
   - Speed adjustment and visual effects
   - High-quality H.264 encoding
 - 📝 **Smart Transcription** - Powered by faster-whisper for accurate speech-to-text
+- 🚀 **YouTube-Ready Metadata** - Automatically generates:
+  - SEO-optimized titles and descriptions
+  - Relevant tags for discoverability
+  - Upload-ready content packages
 - 📊 **Progress Tracking** - Real-time progress bars for all operations
 - ⚙️ **Highly Configurable** - Command-line arguments and environment variables
 
@@ -74,7 +78,9 @@ shorts-creator -v /path/to/your/video.mp4
 | `--shorts` | `-s` | Number of shorts to generate | 5 |
 | `--short-duration` | `-sd` | Duration of each short in seconds | 60 |
 | `--duration` | `-d` | Max input video duration to process (seconds) | None (full video) |
-| `--refresh` | `-r` | Force regenerate all content (ignore cache) | false |
+| `--no-refresh` | `-nr` | Use cached files if available (opposite of refresh) | true |
+
+**Note**: By default, the tool refreshes/regenerates content. Use `-nr` to use cached files.
 
 ### Examples
 
@@ -85,8 +91,8 @@ shorts-creator -v tutorial.mp4 -s 3 -sd 30
 # Process only first 5 minutes of a long video
 shorts-creator -v long-lecture.mp4 -d 300 -s 4
 
-# Force regenerate everything (ignore cached transcripts/analysis)
-shorts-creator -v content.mp4 -r
+# Use cached files (faster processing)
+shorts-creator -v content.mp4 -nr
 
 # Process with custom settings
 shorts-creator -v podcast.mp4 -s 6 -sd 45 -d 1800
@@ -97,18 +103,16 @@ shorts-creator -v podcast.mp4 -s 6 -sd 45 -d 1800
 The tool creates the following directory structure:
 
 ```
-shorts_creator/
-├── audios/
-│   └── extracted_audio.mp3          # Extracted audio from input
-├── text/
-│   └── speech.json                  # Transcription with timestamps  
-├── shorts/
-│   ├── shorts.json                  # AI analysis and metadata
-│   └── videos/
-│       ├── short_0.mp4             # Generated shorts
-│       ├── short_1.mp4
-│       └── ...
+shorts-creator/                        # Output directory
+├── extracted_audio.mp3                # Extracted audio from input video
+├── speech.json                       # Transcription with timestamps
+├── shorts.json                       # AI analysis with titles, descriptions, tags
+├── short_0.mp4                       # Generated shorts (ready for upload)
+├── short_1.mp4
+└── ...
 ```
+
+**Note**: The `poc/` directory contains proof-of-concept experiments and research code, not production functionality.
 
 ## Advanced Configuration
 
@@ -133,6 +137,7 @@ The following settings control video processing quality:
 - **Audio Standards**: `-14 LUFS` loudness with `-1 dBFS` peak limiting
 - **Video Quality**: H.264 High profile, 5 Mbps bitrate, 1080x1920 resolution
 - **Text Overlays**: Auto-generated titles and subscribe calls-to-action
+- **Whisper Model**: `large` for high-accuracy transcription (configurable)
 
 ## Effects Pipeline Details
 
