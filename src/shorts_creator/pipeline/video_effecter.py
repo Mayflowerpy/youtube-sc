@@ -4,6 +4,7 @@ import ffmpeg
 import json
 from typing import Literal
 from shorts_creator.domain.models import Speech, YouTubeShort
+from shorts_creator.assets.fonts import get_font_path
 
 log = logging.getLogger(__name__)
 
@@ -99,10 +100,14 @@ def __basic_effects(
         # Add title overlay with shadow effect (show for max 3 seconds)
         title_duration = min(duration / speed_factor, 3.0)
         
-        # Create shadow text with Roboto font
+        # Get bundled Roboto Bold font path
+        roboto_font_path = str(get_font_path("roboto-bold"))
+        log.info(f"Using font: {roboto_font_path}")
+        
+        # Create shadow text with bundled Roboto font
         video = video.filter('drawtext', 
             text=title_text,
-            fontfile='/Library/Fonts/Roboto-Bold.ttf',
+            fontfile=roboto_font_path,
             fontsize=52,
             fontcolor='black',
             x='(w-text_w)/2',
@@ -110,10 +115,10 @@ def __basic_effects(
             enable=f'lt(t,{title_duration})'
         )
         
-        # Create main title text with stroke and Roboto font
+        # Create main title text with stroke and bundled Roboto font
         video = video.filter('drawtext',
             text=title_text, 
-            fontfile='/Library/Fonts/Roboto-Bold.ttf',
+            fontfile=roboto_font_path,
             fontsize=52,
             fontcolor='white',
             x='(w-text_w)/2',
