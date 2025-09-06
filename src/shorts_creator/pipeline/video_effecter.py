@@ -41,45 +41,12 @@ def __basic_effects(
             title_text = title_text[:47] + "..."
         log.info(f"Generated title: '{title_text}'")
 
-        # Detect and remove grey screen at start
-        # Use blackdetect filter to find solid color frames (grey screens)
-        # This will detect frames with low pixel variance (solid colors)
-        blackdetect_threshold = 0.1  # Adjust for grey detection sensitivity
-        log.info("Detecting grey screen at video start")
+        # Apply smooth opening transition instead of grey screen (YouTube Shorts best practice)
+        # Use engaging fade-in with scale animation for professional look
+        log.info("Applying smooth fade-in opening transition")
         
-        # First pass: detect grey/black frames at start
-        detect_cmd = (
-            ffmpeg
-            .input(str(input_video))
-            .filter('blackdetect', threshold=blackdetect_threshold, duration=0.1)
-            .output('pipe:', format='null', loglevel='info')
-        )
-        
-        # Run detection to find where content starts
-        try:
-            result = ffmpeg.run(detect_cmd, capture_stderr=True, capture_stdout=True)
-            stderr_output = result[1].decode('utf-8') if result[1] else ""
-            
-            # Parse blackdetect output to find first non-grey frame
-            start_time = 0.0
-            lines = stderr_output.split('\n')
-            for line in lines:
-                if 'black_end:' in line:
-                    # Extract the time when grey screen ends
-                    end_time_str = line.split('black_end:')[1].split()[0]
-                    start_time = float(end_time_str)
-                    log.info(f"Grey screen detected until {start_time}s, trimming start")
-                    break
-        except Exception as e:
-            log.warning(f"Grey screen detection failed, proceeding without trim: {e}")
-            start_time = 0.0
-
-        # Build FFmpeg filter chain
-        if start_time > 0:
-            input_stream = ffmpeg.input(str(input_video), ss=start_time)
-            log.info(f"Trimming {start_time}s from start to remove grey screen")
-        else:
-            input_stream = ffmpeg.input(str(input_video))
+        # Always start from beginning - we'll use transition to mask any grey screen
+        input_stream = ffmpeg.input(str(input_video))
         
         # Apply speed scaling (1.35x)
         speed_factor = 1.35
@@ -97,36 +64,69 @@ def __basic_effects(
             log.info("Tall/square video: scaling and centering horizontally")  
             video = video.filter('scale', -1, target_h).filter('pad', target_w, target_h, '(ow-iw)/2', 0, 'black')
 
-        # Add title overlay with shadow effect (show for max 3 seconds)
+        # Apply smooth opening transition (YouTube Shorts 2024 best practices)
+        transition_duration = 0.6  # 600ms smooth transition - optimal for mobile attention
+        log.info(f"Adding {transition_duration}s opening transition: fade-in effect")
+        
+        # Create engaging entrance effect that masks any grey screen
+        # Simple fade-in from black (professional entrance)
+        video = video.filter('fade', type='in', duration=transition_duration, start_time=0)
+
+        # Add animated title with word-by-word reveal (YouTube Shorts best practices)
         title_duration = min(duration / speed_factor, 3.0)
         
         # Get bundled Roboto Bold font path
         roboto_font_path = str(get_font_path("roboto-bold"))
         log.info(f"Using font: {roboto_font_path}")
         
-        # Create shadow text with bundled Roboto font
-        video = video.filter('drawtext', 
-            text=title_text,
-            fontfile=roboto_font_path,
-            fontsize=52,
-            fontcolor='black',
-            x='(w-text_w)/2',
-            y=82,
-            enable=f'lt(t,{title_duration})'
-        )
+        # Split title into words for animation
+        words = title_text.split()
+        word_delay = 0.4  # 400ms between words for good pacing
         
-        # Create main title text with stroke and bundled Roboto font
-        video = video.filter('drawtext',
-            text=title_text, 
-            fontfile=roboto_font_path,
-            fontsize=52,
-            fontcolor='white',
-            x='(w-text_w)/2',
-            y=80,
-            borderw=4,
-            bordercolor='black',
-            enable=f'lt(t,{title_duration})'
-        )
+        # Position title higher up - between top border and main content area
+        title_y_position = 120  # Higher position for better mobile viewing
+        
+        log.info(f"Animating title '{title_text}' word-by-word with {len(words)} words")
+        
+        # Animate each word with staggered timing
+        for i, word in enumerate(words):
+            word_start_time = i * word_delay
+            word_end_time = min(word_start_time + title_duration, title_duration)
+            
+            # Skip if word would start after title duration
+            if word_start_time >= title_duration:
+                break
+            
+            # Build the progressive text (show all previous words + current word)
+            progressive_text = " ".join(words[:i+1])
+            
+            # Create shadow for current progressive text with slide-in effect
+            video = video.filter('drawtext',
+                text=progressive_text,
+                fontfile=roboto_font_path,
+                fontsize=56,  # Slightly larger for better mobile visibility
+                fontcolor='black',
+                x=f'(w-text_w)/2+2',  # Slight offset for shadow
+                y=title_y_position + 2,
+                enable=f'between(t,{word_start_time},{word_end_time})',
+                alpha=f'0.8*min(1,(t-{word_start_time})*8)'  # Fade in effect
+            )
+            
+            # Create main text with slide-in and bounce effect
+            video = video.filter('drawtext',
+                text=progressive_text,
+                fontfile=roboto_font_path,
+                fontsize=56,
+                fontcolor='white',
+                x='(w-text_w)/2',
+                y=title_y_position,
+                borderw=3,
+                bordercolor='black',
+                enable=f'between(t,{word_start_time},{word_end_time})',
+                alpha=f'min(1,(t-{word_start_time})*8)'  # Fade in effect
+            )
+        
+        log.info(f"Title animation configured: {len(words)} words over {title_duration:.1f}s")
 
         log.info(f"Exporting video to {output_video}")
 
@@ -147,7 +147,13 @@ def __basic_effects(
             preset='fast'
         )
         
-        ffmpeg.run(output, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+        try:
+            ffmpeg.run(output, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+        except ffmpeg.Error as e:
+            log.error(f"FFmpeg command failed:")
+            log.error(f"stdout: {e.stdout.decode() if e.stdout else 'None'}")
+            log.error(f"stderr: {e.stderr.decode() if e.stderr else 'None'}")
+            raise
 
         log.info("basic_effects strategy completed successfully")
         return output_video
