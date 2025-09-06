@@ -13,6 +13,7 @@ class AppSettings(BaseSettings):
     video_path: Path = Path("data/videos/long_video.mp4")
     shorts_number: int = 3
     duration_seconds: int | None = None
+    short_duration_seconds: int = 60
 
     class Config:
         env_file = ".env"
@@ -41,5 +42,12 @@ def parse_args() -> AppSettings:
         default=None,
         help="Maximum duration of video to process in seconds",
     )
+    parser.add_argument(
+        "-sd",
+        "--short-duration",
+        type=int,
+        default=60,
+        help="Duration of each short in seconds",
+    )
     args = parser.parse_args()
-    return AppSettings(refresh=args.refresh, video_path=args.video, shorts_number=args.shorts, duration=args.duration)  # type: ignore
+    return AppSettings(refresh=args.refresh, video_path=args.video, shorts_number=args.shorts, duration=args.duration, short_duration_seconds=args.short_duration)  # type: ignore

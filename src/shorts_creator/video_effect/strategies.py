@@ -5,6 +5,7 @@ from shorts_creator.video_effect.video_effect import (
     VideoRatioConversionEffect,
     TextEffect,
     BlurFilterStartVideoEffect,
+    AudioNormalizationEffect,
 )
 from shorts_creator.domain.models import YouTubeShort
 from typing import Sequence
@@ -17,6 +18,7 @@ class VideoEffectsStrategy(Enum):
         match self:
             case VideoEffectsStrategy.BASIC:
                 return [
+                    AudioNormalizationEffect(target_lufs=-14.0, peak_limit=-1.0),
                     VideoRatioConversionEffect(target_w=1080, target_h=1920),
                     TextEffect(text=short.title, text_align="top"),
                     TextEffect(text=short.subscribe_subtitle, text_align="bottom"),

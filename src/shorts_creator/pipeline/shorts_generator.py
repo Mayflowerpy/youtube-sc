@@ -20,10 +20,10 @@ def _format_segments_for_analysis(speech: Speech) -> tuple[str, int]:
     return segments_text, total_segments
 
 
-def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts: int) -> str:
+def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts: int, max_duration_seconds: int) -> str:
     """Create the prompt for YouTube shorts analysis."""
     return f"""
-    Analyze the following video transcript segments and identify ranges that would make excellent YouTube Shorts (30 seconds or less).
+    Analyze the following video transcript segments and identify ranges that would make excellent YouTube Shorts ({max_duration_seconds} seconds or less).
     
     QUALITY FIRST: Prioritize high-quality shorts that meet YouTube Shorts best practices. However, you must find the BEST available content from this video - even if it's not perfect, identify the most engaging segments that could work as shorts. Always return at least 1 short unless the content is completely unsuitable.
     
@@ -63,7 +63,7 @@ def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts:
     - Keep it friendly and enthusiastic
     
     CRITICAL REQUIREMENTS:
-    - Each short must be 30 seconds or less in duration
+    - Each short must be {max_duration_seconds} seconds or less in duration
     - You MUST return EXACTLY {max_shorts} shorts - no more, no less
     - If there are fewer than {max_shorts} high-quality segments, you must still find {max_shorts} segments by lowering your quality standards slightly
     - Find the BEST available content, but prioritize meeting the exact count requirement
@@ -78,7 +78,7 @@ def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts:
     4. end_segment_index: The ending segment number (0-based, inclusive)
     5. The full transcript text for those segments combined
     6. Reasoning why this range would work as a short (focus on hook, engagement, and completeness)
-    7. Estimated duration (must be ≤30 seconds) and key topics
+    7. Estimated duration (must be ≤{max_duration_seconds} seconds) and key topics
     
     Note: There are {total_segments} segments total (numbered 0 to {total_segments-1}).
     Each segment includes timing information to help you estimate durations.
@@ -152,7 +152,7 @@ def generate_youtube_shorts_recommendations(
     """Generate YouTube shorts recommendations from speech transcript."""
     try:
         segments_text, total_segments = _format_segments_for_analysis(speech)
-        prompt = _create_analysis_prompt(segments_text, total_segments, settings.shorts_number)
+        prompt = _create_analysis_prompt(segments_text, total_segments, settings.shorts_number, settings.short_duration_seconds)
         analysis = _call_openai_api(prompt, settings)
         _add_timestamps_to_shorts(analysis, speech)
         return analysis
