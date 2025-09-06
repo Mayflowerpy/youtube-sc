@@ -2,6 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 
+from tqdm import tqdm
 from shorts_creator.pipeline import (
     audio_retriever,
     speech_to_text,
@@ -18,6 +19,44 @@ from shorts_creator.settings.settings import parse_args
 logging.basicConfig(level=logging.INFO)
 
 log = logging.getLogger(__name__)
+
+
+def process_shorts_with_progress(shorts, settings, videos_output_dir):
+    """Process all shorts with progress bar and enhanced video effects."""
+    with tqdm(total=len(shorts.shorts), desc="Processing shorts", unit="short", dynamic_ncols=True) as pbar:
+        for i, short in enumerate(shorts.shorts):
+            # Update progress bar description with current short
+            pbar.set_description(f"Processing short {i+1}/{len(shorts.shorts)}")
+            
+            # 1) Cut the raw short from the source video
+            video_path = video_cutter.create_short_video(
+                input_video=settings.video_path,
+                short=short,
+                output_dir=videos_output_dir,
+                short_index=i,
+            )
+            pbar.set_postfix(step="Video cut", title=short.title[:20] + "..." if len(short.title) > 20 else short.title)
+            
+            # 2) Apply video effects
+            final_path = video_effect_service.apply_effects(
+                short,
+                video_path,
+                VideoEffectsStrategy.BASIC,
+                videos_output_dir,
+            )
+            pbar.set_postfix(step="Effects applied", title=short.title[:20] + "..." if len(short.title) > 20 else short.title)
+            
+            # 3) Replace the original video with the enhanced version
+            video_path.unlink(missing_ok=True)  # Remove original file
+            final_video_path = final_path.rename(video_path)  # Rename enhanced file to original name
+            
+            # Update progress
+            pbar.update(1)
+            pbar.set_postfix(step="Complete", title=short.title[:20] + "..." if len(short.title) > 20 else short.title)
+            
+            log.info(f"Enhanced short video {i+1}: {final_video_path}")
+    
+    log.info("All shorts processing completed!")
 
 
 async def main():
@@ -48,27 +87,8 @@ async def main():
     videos_output_dir = settings.data_dir / "shorts/videos"
     videos_output_dir.mkdir(parents=True, exist_ok=True)
 
-    for i, short in enumerate(shorts.shorts):
-        # 1) Cut the raw short from the source video
-        video_path = video_cutter.create_short_video(
-            input_video=settings.video_path,
-            short=short,
-            output_dir=videos_output_dir,
-            short_index=i,
-        )
-        log.info(f"Created short video {i+1}: {video_path}")
-
-        final_path = video_effect_service.apply_effects(
-            short,
-            video_path,
-            VideoEffectsStrategy.BASIC,
-            videos_output_dir,
-        )
-        
-        # Replace the original video with the enhanced version
-        video_path.unlink(missing_ok=True)  # Remove original file
-        final_video_path = final_path.rename(video_path)  # Rename enhanced file to original name
-        log.info(f"Enhanced short video {i+1}: {final_video_path}")
+    # Process all shorts with progress tracking
+    process_shorts_with_progress(shorts, settings, videos_output_dir)
 
     log.info("Shorts creation completed!")
 

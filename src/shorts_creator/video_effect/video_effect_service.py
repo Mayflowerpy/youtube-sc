@@ -34,7 +34,7 @@ def _write_output_video(video_streams: list[ffmpeg.nodes.Stream], output_file: P
     }
     ffmpeg.output(
         *video_streams, str(output_file), **out_kwargs
-    ).overwrite_output().run()
+    ).run()
 
 
 def _delete_old_files(old_video_files: list[Path]):
