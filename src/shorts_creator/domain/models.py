@@ -43,13 +43,16 @@ class YouTubeShort(BaseModel):
         description="Why this segment would make a good YouTube short"
     )
     description: str = Field(
-        description="Description for the short video (can include hashtags)"
+        min_length=300,
+        description="Detailed description for the short video (can include hashtags)",
     )
     estimated_duration: str = Field(
         description="Estimated duration of this segment (e.g., '30-60 seconds')"
     )
-    key_topics: list[str] = Field(
-        description="Main topics or themes covered in this segment"
+    tags: list[str] = Field(
+        min_length=20,
+        max_length=50,
+        description="YouTube tags relevant to this short video.",
     )
 
 

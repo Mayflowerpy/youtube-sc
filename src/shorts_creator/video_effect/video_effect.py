@@ -74,9 +74,9 @@ class TextEffect(VideoEffect):
     def _calculate_y_position(self) -> int:
         """Calculate Y position based on text alignment and black bar information"""
         if self.text_align == "top":
-            return 200
+            return 300
         else:
-            return self.target_h - 300
+            return self.target_h - 400
 
     def apply(self, video_stream: Stream) -> list[Stream]:
         v = video_stream.video
