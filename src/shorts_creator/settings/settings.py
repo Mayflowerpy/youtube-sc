@@ -12,7 +12,7 @@ class AppSettings(BaseSettings):
     refresh: bool = False
     video_path: Path = Path("data/videos/long_video.mp4")
     shorts_number: int = 3
-    duration_seconds: int | None
+    duration_seconds: int | None = None
 
     class Config:
         env_file = ".env"

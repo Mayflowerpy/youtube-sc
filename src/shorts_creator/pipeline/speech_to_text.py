@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from faster_whisper import WhisperModel
+from tqdm import tqdm
 from shorts_creator.domain.models import Speech, SpeechSegment
 from shorts_creator.pipeline import storage
 
@@ -18,7 +19,6 @@ def convert_speech_to_text(
     log.info(f"Loading faster-whisper model: {model_size}")
 
     try:
-        # Load faster-whisper model (automatically uses CoreML on Apple Silicon)
         model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
         log.info(f"Transcribing audio from {audio_file}")
@@ -37,13 +37,25 @@ def convert_speech_to_text(
         log.info("Processing transcription segments...")
         speech_segments = []
 
-        for segment in segments:
-            speech_segment = SpeechSegment(
-                start_time=segment.start,
-                end_time=segment.end,
-                text=segment.text.strip(),
-            )
-            speech_segments.append(speech_segment)
+        with tqdm(
+            total=info.duration,
+            desc="Processing segments",
+            unit="s",
+            dynamic_ncols=True,
+        ) as pbar:
+            for segment in segments:
+                speech_segment = SpeechSegment(
+                    start_time=segment.start,
+                    end_time=segment.end,
+                    text=segment.text.strip(),
+                )
+                speech_segments.append(speech_segment)
+
+                current_time = int(segment.end)
+                progress = min(current_time, info.duration)
+                pbar.n = progress
+                pbar.set_postfix(time=f"{segment.end:.1f}s/{info.duration:.1f}s")
+                pbar.refresh()
 
         speech = Speech(
             language=info.language,
