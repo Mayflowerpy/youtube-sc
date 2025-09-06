@@ -105,10 +105,13 @@ def _detect_and_trim_grey_screen(input_video: Path):
 
 
 def _apply_pixelate_transition(video, duration: float):
-    return video.filter("scale", w="iw/20", h="ih/20", flags="neighbor")
-    #     .filter(
-    #     "scale", w="iw*20", h="ih*20", flags="neighbor"
-    # )
+    # Use geq filter for time-based pixelate effect that works with expressions
+    return video.filter(
+        'geq',
+        lum=f'if(lt(t,{duration}), lum(floor(X/20)*20, floor(Y/20)*20), lum(X,Y))',
+        cb=f'if(lt(t,{duration}), cb(floor(X/20)*20, floor(Y/20)*20), cb(X,Y))', 
+        cr=f'if(lt(t,{duration}), cr(floor(X/20)*20, floor(Y/20)*20), cr(X,Y))'
+    )
 
 
 def _calculate_title_position(black_bar_top_height: int):
@@ -256,7 +259,7 @@ def __basic_effects(
         video = _apply_aspect_ratio_conversion(
             video, conversion_info, target_w, target_h
         )
-        video = _apply_pixelate_transition(video, 1.0)
+        video = _apply_pixelate_transition(video, 3.0)
 
         title_text = "NEW VIDEO"
         title_duration = dimensions["duration"] / speed_factor
