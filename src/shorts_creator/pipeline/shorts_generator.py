@@ -67,6 +67,25 @@ def _create_analysis_prompt(
     - Mention what viewers will get by subscribing
     - Keep it friendly and enthusiastic
     
+    YOUTUBE TAGS GUIDELINES:
+    - Provide 20-50 relevant tags for YouTube optimization
+    - Include primary keywords from the content
+    - Mix broad and specific tags (e.g., "programming", "python tutorial", "coding tips")
+    - Use trending hashtags when relevant
+    - Include channel/brand-related tags
+    - Consider search intent and popular queries
+    - Tags should be single words or short phrases
+    
+    YOUTUBE DESCRIPTION GUIDELINES:
+    - Minimum 300 characters for better SEO
+    - Start with a compelling hook that summarizes the value
+    - Include the most important tags as hashtags in the description
+    - Add a clear call-to-action (like, subscribe, comment)
+    - Structure: Hook → What viewers will learn → Call to action → Hashtags
+    - Write in an engaging, conversational tone
+    - Include relevant keywords naturally throughout
+    - End with 5-10 strategic hashtags from your tags list
+    
     CRITICAL REQUIREMENTS:
     - Each short must be {max_duration_seconds} seconds or less in duration
     - You MUST return EXACTLY {max_shorts} shorts - no more, no less
@@ -79,11 +98,13 @@ def _create_analysis_prompt(
     For each identified segment range, provide:
     1. title: A catchy, engaging title for the short (maximum 30 characters) that captures the key value or hook
     2. subscribe_subtitle: An encouraging call-to-action subtitle to get viewers to subscribe (maximum 50 characters)
-    3. start_segment_index: The starting segment number (0-based)
-    4. end_segment_index: The ending segment number (0-based, inclusive)
-    5. The full transcript text for those segments combined
-    6. Reasoning why this range would work as a short (focus on hook, engagement, and completeness)
-    7. Estimated duration (must be ≤{max_duration_seconds} seconds) and key topics
+    3. description: A detailed YouTube description (minimum 300 characters) following the guidelines above
+    4. tags: A list of 20-50 relevant YouTube tags for optimization and discoverability
+    5. start_segment_index: The starting segment number (0-based)
+    6. end_segment_index: The ending segment number (0-based, inclusive)
+    7. The full transcript text for those segments combined
+    8. Reasoning why this range would work as a short (focus on hook, engagement, and completeness)
+    9. Estimated duration (must be ≤{max_duration_seconds} seconds) and key topics
     
     Note: There are {total_segments} segments total (numbered 0 to {total_segments-1}).
     Each segment includes timing information to help you estimate durations.
