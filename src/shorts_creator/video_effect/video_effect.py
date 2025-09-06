@@ -164,13 +164,14 @@ class BlurFilterStartVideoEffect(VideoEffect):
             # Calculate blur strength for this step (decreases linearly)
             blur_for_step = self.blur_strength * (1 - i / self.steps)
             
+            # Apply blur first, then trim to avoid frame timing issues
             if blur_for_step > 0:
-                # Apply blur and trim to step duration
+                # Apply blur to the entire video, then trim the segment
                 segment = v.filter("boxblur", blur_for_step).filter(
                     "trim", start=start_time, end=end_time
                 ).filter("setpts", "PTS-STARTPTS")
             else:
-                # No blur for this segment
+                # No blur for this segment, just trim
                 segment = v.filter(
                     "trim", start=start_time, end=end_time
                 ).filter("setpts", "PTS-STARTPTS")
@@ -181,7 +182,7 @@ class BlurFilterStartVideoEffect(VideoEffect):
         remaining_part = v.filter("trim", start=self.duration).filter("setpts", "PTS-STARTPTS")
         segments.append(remaining_part)
         
-        # Concatenate all segments
-        v = ffmpeg.concat(*segments, v=1, a=0)
+        # Concatenate all segments with proper frame alignment
+        v = ffmpeg.concat(*segments, v=1, a=0).filter("fps", fps=30)
 
         return [v, a]
