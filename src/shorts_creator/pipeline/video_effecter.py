@@ -70,14 +70,30 @@ def _apply_aspect_ratio_conversion(video, conversion_info: dict, target_w: int, 
         log.info("Tall/square video: scaling and centering horizontally")
         return video.filter('scale', -1, target_h).filter('pad', target_w, target_h, '(ow-iw)/2', 0, 'black')
 
+def _detect_and_trim_grey_screen(input_video: Path):
+    try:
+        detect_cmd = (
+            ffmpeg
+            .input(str(input_video))
+            .filter('blackdetect', threshold=0.3, duration=0.2)
+            .output('pipe:', format='null', loglevel='info')
+        )
+        
+        result = ffmpeg.run(detect_cmd, capture_stderr=True, capture_stdout=True)
+        stderr_output = result[1].decode('utf-8') if result[1] else ""
+        
+        for line in stderr_output.split('\n'):
+            if 'black_end:' in line and 'black_start:0' in line:
+                end_time_str = line.split('black_end:')[1].split()[0]
+                detected_time = float(end_time_str)
+                if detected_time >= 0.2:
+                    return detected_time + 0.1
+        return 0.0
+    except Exception:
+        return 0.0
+
 def _apply_pixelate_fade_transition(video, duration: float):
-    pixelated_video = (
-        video
-        .filter('scale', w='iw/20', h='ih/20', flags='neighbor') 
-        .filter('scale', w='iw*20', h='ih*20', flags='neighbor')
-    )
-    
-    return pixelated_video.filter('fade', type='in', duration=duration, start_time=0)
+    return video.filter('fade', type='in', duration=duration, start_time=0)
 
 def _calculate_title_position(black_bar_top_height: int):
     if black_bar_top_height > 60:
@@ -198,7 +214,14 @@ def __basic_effects(
             dimensions['width'], dimensions['height'], target_w, target_h
         )
         
-        input_stream = ffmpeg.input(str(input_video))
+        grey_screen_duration = _detect_and_trim_grey_screen(input_video)
+        
+        if grey_screen_duration > 0:
+            input_stream = ffmpeg.input(str(input_video), ss=grey_screen_duration)
+            log.info(f"Trimming {grey_screen_duration}s grey screen from start")
+        else:
+            input_stream = ffmpeg.input(str(input_video))
+            
         speed_factor = 1.35
         
         video, audio = _apply_speed_scaling(input_stream, speed_factor)
