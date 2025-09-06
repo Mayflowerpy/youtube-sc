@@ -42,6 +42,9 @@ class YouTubeShort(BaseModel):
     reasoning: str = Field(
         description="Why this segment would make a good YouTube short"
     )
+    description: str = Field(
+        description="Description for the short video (can include hashtags)"
+    )
     estimated_duration: str = Field(
         description="Estimated duration of this segment (e.g., '30-60 seconds')"
     )

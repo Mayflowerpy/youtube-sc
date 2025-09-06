@@ -1,8 +1,8 @@
 from pathlib import Path
 from shorts_creator.video_effect.video_effect import VideoEffect
 from shorts_creator.video_effect.strategies import VideoEffectsStrategy
+from shorts_creator.settings.settings import AppSettings
 from logging import getLogger
-from datetime import datetime
 from shorts_creator.domain.models import YouTubeShort
 import ffmpeg
 
@@ -45,6 +45,7 @@ def _delete_old_files(old_video_files: list[Path]):
 
 def apply_effects(
     short: YouTubeShort,
+    settings: AppSettings,
     video_path: Path,
     strategy: VideoEffectsStrategy,
     output_dir: Path,
@@ -54,7 +55,7 @@ def apply_effects(
 
     curr_video_path = video_path
 
-    effects = strategy.create_effects(short)
+    effects = strategy.create_effects(short, settings)
 
     output_file = None
     old_video_files = []

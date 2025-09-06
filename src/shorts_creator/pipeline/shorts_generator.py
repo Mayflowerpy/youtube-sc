@@ -14,13 +14,18 @@ def _format_segments_for_analysis(speech: Speech) -> tuple[str, int]:
         numbered_segments.append(
             f"Segment {i}: [{segment.start_time:.1f}s-{segment.end_time:.1f}s, {duration:.1f}s duration] {segment.text}"
         )
-    
+
     segments_text = "\n".join(numbered_segments)
     total_segments = len(speech.segments)
     return segments_text, total_segments
 
 
-def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts: int, max_duration_seconds: int) -> str:
+def _create_analysis_prompt(
+    segments_text: str,
+    total_segments: int,
+    max_shorts: int,
+    max_duration_seconds: float,
+) -> str:
     """Create the prompt for YouTube shorts analysis."""
     return f"""
     Analyze the following video transcript segments and identify ranges that would make excellent YouTube Shorts ({max_duration_seconds} seconds or less).
@@ -91,7 +96,7 @@ def _create_analysis_prompt(segments_text: str, total_segments: int, max_shorts:
 def _call_openai_api(prompt: str, settings: AppSettings) -> YouTubeShortsRecommendation:
     """Make API call to OpenAI for shorts analysis."""
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
-    
+
     response = client.beta.chat.completions.parse(
         model=settings.model_name,
         messages=[
@@ -106,7 +111,7 @@ def _call_openai_api(prompt: str, settings: AppSettings) -> YouTubeShortsRecomme
     )
 
     analysis = response.choices[0].message.parsed
-    
+
     if analysis is None:
         log.error("Failed to parse response from OpenAI")
         return YouTubeShortsRecommendation(
@@ -114,11 +119,13 @@ def _call_openai_api(prompt: str, settings: AppSettings) -> YouTubeShortsRecomme
             total_shorts_found=0,
             analysis_summary="Failed to parse response from OpenAI",
         )
-    
+
     return analysis
 
 
-def _add_timestamps_to_shorts(analysis: YouTubeShortsRecommendation, speech: Speech) -> None:
+def _add_timestamps_to_shorts(
+    analysis: YouTubeShortsRecommendation, speech: Speech
+) -> None:
     """Add precise timestamps to each short using segment indices."""
     for short in analysis.shorts:
         # Validate segment indices
@@ -152,7 +159,12 @@ def generate_youtube_shorts_recommendations(
     """Generate YouTube shorts recommendations from speech transcript."""
     try:
         segments_text, total_segments = _format_segments_for_analysis(speech)
-        prompt = _create_analysis_prompt(segments_text, total_segments, settings.shorts_number, settings.short_duration_seconds)
+        prompt = _create_analysis_prompt(
+            segments_text,
+            total_segments,
+            settings.shorts_number,
+            settings.short_duration_seconds * settings.speed_factor,
+        )
         analysis = _call_openai_api(prompt, settings)
         _add_timestamps_to_shorts(analysis, speech)
         return analysis
