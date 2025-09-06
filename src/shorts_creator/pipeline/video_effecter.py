@@ -14,10 +14,19 @@ EffectsStrategy = Literal["basic_effects"]
 def _get_video_dimensions(input_video: Path):
     probe = ffmpeg.probe(str(input_video))
     video_stream = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    
+    duration = video_stream.get('duration')
+    if duration is None:
+        format_info = probe.get('format', {})
+        duration = format_info.get('duration')
+    
+    if duration is None:
+        raise ValueError(f"Could not determine video duration for {input_video}")
+    
     return {
         'width': int(video_stream['width']),
         'height': int(video_stream['height']),
-        'duration': float(video_stream.get('duration', 30))
+        'duration': float(duration)
     }
 
 def _calculate_aspect_ratio_conversion(original_w: int, original_h: int, target_w: int, target_h: int):
@@ -61,8 +70,14 @@ def _apply_aspect_ratio_conversion(video, conversion_info: dict, target_w: int, 
         log.info("Tall/square video: scaling and centering horizontally")
         return video.filter('scale', -1, target_h).filter('pad', target_w, target_h, '(ow-iw)/2', 0, 'black')
 
-def _apply_fade_transition(video, duration: float):
-    return video.filter('fade', type='in', duration=duration, start_time=0)
+def _apply_pixelate_fade_transition(video, duration: float):
+    pixelated_video = (
+        video
+        .filter('scale', w='iw/20', h='ih/20', flags='neighbor') 
+        .filter('scale', w='iw*20', h='ih*20', flags='neighbor')
+    )
+    
+    return pixelated_video.filter('fade', type='in', duration=duration, start_time=0)
 
 def _calculate_title_position(black_bar_top_height: int):
     if black_bar_top_height > 60:
@@ -188,7 +203,7 @@ def __basic_effects(
         
         video, audio = _apply_speed_scaling(input_stream, speed_factor)
         video = _apply_aspect_ratio_conversion(video, conversion_info, target_w, target_h)
-        video = _apply_fade_transition(video, 0.6)
+        video = _apply_pixelate_fade_transition(video, 1.0)
         
         title_text = "NEW VIDEO"
         title_duration = dimensions['duration'] / speed_factor
