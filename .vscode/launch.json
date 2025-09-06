@@ -9,7 +9,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "shorts_creator.main",
-            "args": ["-v", "data/videos/long_video.mp4", "-s", "1"]
+            "args": ["-r", "-v", "data/videos/long_video.mp4", "-s", "10"]
         },
         {
             "name": "Video Effecter",
