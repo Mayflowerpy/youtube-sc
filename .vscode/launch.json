@@ -24,6 +24,13 @@
             "request": "launch",
             "module": "poc.video_speed.main",
             "args": ["data/shorts/videos/short_1_1s-29s.mp4", "data/shorts/videos/short_1_1s-29s_speed.mp4"]
+        },
+        {
+            "name": "Video Effect Service",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "shorts_creator.video_effect.video_effect_service",
+            "args": ["data/shorts/videos/short_1_1s-29s.mp4", "data/shorts/videos"]
         }
     ]
 }
