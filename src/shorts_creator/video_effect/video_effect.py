@@ -65,7 +65,7 @@ class TextEffect(VideoEffect):
         self.text = text
         self.text_align = text_align
         # Set default font sizes based on alignment (matching original implementation)
-        self.font_size = font_size or (84 if text_align == "top" else 70)
+        self.font_size = font_size or (65 if text_align == "top" else 51)
         self.font_color = font_color
         self.font_path = str(get_font_path(font_name))
         self.target_w = target_w
@@ -74,7 +74,7 @@ class TextEffect(VideoEffect):
     def _calculate_y_position(self) -> int:
         """Calculate Y position based on text alignment and black bar information"""
         if self.text_align == "top":
-            return 150
+            return 200
         else:
             return self.target_h - 300
 
