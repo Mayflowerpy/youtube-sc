@@ -64,7 +64,11 @@ async def main():
             VideoEffectsStrategy.BASIC,
             videos_output_dir,
         )
-        log.info(f"Enhanced short video {i+1}: {final_path}")
+        
+        # Replace the original video with the enhanced version
+        video_path.unlink(missing_ok=True)  # Remove original file
+        final_video_path = final_path.rename(video_path)  # Rename enhanced file to original name
+        log.info(f"Enhanced short video {i+1}: {final_video_path}")
 
     log.info("Shorts creation completed!")
 
