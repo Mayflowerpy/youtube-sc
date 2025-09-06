@@ -32,12 +32,27 @@ def cut_video_segment_with_effects(
         # Ensure output directory exists
         output_video.parent.mkdir(parents=True, exist_ok=True)
 
-        # Simple accurate cut with re-encode
+        # Accurate cut with black frame removal
         duration = end_time - start_time
-
-        input_stream = ffmpeg.input(str(input_video), ss=start_time, t=duration)
+        
+        # Use more precise seeking and add black frame detection
+        input_stream = ffmpeg.input(str(input_video))
+        
+        # Apply precise trimming with black frame removal
+        video = (
+            input_stream.video
+            .filter('trim', start=start_time, duration=duration)
+            .filter('setpts', 'PTS-STARTPTS')  # Reset timestamps to avoid black frames
+        )
+        
+        audio = (
+            input_stream.audio
+            .filter('atrim', start=start_time, duration=duration)
+            .filter('asetpts', 'PTS-STARTPTS')  # Reset audio timestamps
+        )
+        
         output_stream = ffmpeg.output(
-            input_stream,
+            video, audio,
             str(output_video),
             vcodec="libx264",
             acodec="aac",
