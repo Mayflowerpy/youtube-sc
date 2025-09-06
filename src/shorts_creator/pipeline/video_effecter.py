@@ -92,8 +92,12 @@ def _detect_and_trim_grey_screen(input_video: Path):
     except Exception:
         return 0.0
 
-def _apply_pixelate_fade_transition(video, duration: float):
-    return video.filter('fade', type='in', duration=duration, start_time=0)
+def _apply_pixelate_transition(video, duration: float):
+    return (
+        video
+        .filter('scale', w='iw/20', h='ih/20', flags='neighbor') 
+        .filter('scale', w='iw*20', h='ih*20', flags='neighbor')
+    )
 
 def _calculate_title_position(black_bar_top_height: int):
     if black_bar_top_height > 60:
@@ -179,14 +183,9 @@ def _export_video(video, audio, output_path: Path):
         vcodec='libx264',
         acodec='aac',
         video_bitrate='12M',
-        maxrate='15M',
-        bufsize='20M',
         audio_bitrate='320k',
         ar=48000,
-        profile='high',
-        level='4.0',
         pix_fmt='yuv420p',
-        movflags='+faststart',
         preset='fast'
     )
     
@@ -214,19 +213,21 @@ def __basic_effects(
             dimensions['width'], dimensions['height'], target_w, target_h
         )
         
-        grey_screen_duration = _detect_and_trim_grey_screen(input_video)
-        
-        if grey_screen_duration > 0:
-            input_stream = ffmpeg.input(str(input_video), ss=grey_screen_duration)
-            log.info(f"Trimming {grey_screen_duration}s grey screen from start")
-        else:
-            input_stream = ffmpeg.input(str(input_video))
+        # Disable grey screen detection to isolate black screen source
+        # grey_screen_duration = _detect_and_trim_grey_screen(input_video)
+        # 
+        # if grey_screen_duration > 0:
+        #     input_stream = ffmpeg.input(str(input_video), ss=grey_screen_duration)
+        #     log.info(f"Trimming {grey_screen_duration}s grey screen from start")
+        # else:
+        #     input_stream = ffmpeg.input(str(input_video))
+        input_stream = ffmpeg.input(str(input_video))
             
         speed_factor = 1.35
         
         video, audio = _apply_speed_scaling(input_stream, speed_factor)
         video = _apply_aspect_ratio_conversion(video, conversion_info, target_w, target_h)
-        video = _apply_pixelate_fade_transition(video, 1.0)
+        video = _apply_pixelate_transition(video, 1.0)
         
         title_text = "NEW VIDEO"
         title_duration = dimensions['duration'] / speed_factor
@@ -234,6 +235,7 @@ def __basic_effects(
         subscribe_y_position = _calculate_subscribe_position(conversion_info, target_h)
         font_path = str(get_font_path("roboto-bold"))
         
+        # Disable title and subscribe text to isolate black screen source
         video = _apply_title_animation(video, title_text, title_y_position, title_duration, font_path)
         video = _apply_static_subscribe_text(video, subscribe_y_position, title_duration, font_path)
         
