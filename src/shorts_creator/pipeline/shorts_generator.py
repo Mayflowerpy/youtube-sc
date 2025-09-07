@@ -6,11 +6,20 @@ from shorts_creator.domain.models import (
     Speech,
     YouTubeShortsRecommendation,
     YouTubeShortWithSpeech,
-    YouTubeShortsRecommendationResponse,
+    YouTubeShort,
 )
+from pydantic import BaseModel, Field
 from shorts_creator.settings.settings import AppSettings
 
 log = logging.getLogger(__name__)
+
+
+class YouTubeShortsRecommendationResponse(BaseModel):
+    shorts: list[YouTubeShort] = Field(
+        description="List of identified YouTube shorts segments"
+    )
+    total_shorts_found: int = Field(description="Total number of shorts identified")
+    analysis_summary: str = Field(description="Overall summary of the analysis")
 
 
 def _format_segments_for_analysis(speech: Speech) -> tuple[str, int]:
@@ -27,113 +36,80 @@ def _format_segments_for_analysis(speech: Speech) -> tuple[str, int]:
     return segments_text, total_segments
 
 
-def _create_analysis_prompt(
-    segments_text: str,
-    total_segments: int,
+def _create_system_prompt(
     max_shorts: int,
     max_duration_seconds: float,
 ) -> str:
-    """Create the prompt for YouTube shorts analysis."""
+    """Create the system prompt for YouTube shorts analysis."""
     return f"""
-    Analyze the following video transcript segments and identify ranges that would make excellent YouTube Shorts ({max_duration_seconds} seconds or less).
-    
-    QUALITY FIRST: Prioritize high-quality shorts that meet YouTube Shorts best practices. However, you must find the BEST available content from this video - even if it's not perfect, identify the most engaging segments that could work as shorts. Always return at least 1 short unless the content is completely unsuitable.
-    
-    YouTube Shorts Best Practices (ALL must be met):
-    - Hook viewers in first 3 seconds with compelling opening
-    - Keep content punchy and fast-paced
-    - One clear message or story per short
-    - Strong visual storytelling potential
-    - High engagement potential (comments, shares, saves)
-    - Trending topics or evergreen content
-    - Clear call-to-action or cliffhanger ending
-    
-    Look for segments with:
-    - Immediate attention-grabbing openings (strong hook within first 3 seconds)
-    - Self-contained moments with clear beginning and end
-    - Engaging hooks or surprising information
-    - Practical tips or advice that can be consumed quickly
-    - Interesting stories or anecdotes (complete mini-stories)
-    - Controversial or thought-provoking statements
-    - Educational content that can stand alone
-    - Emotional moments (funny, inspiring, shocking)
-    - Before/after scenarios or transformations
-    - Clear value proposition for viewers
-    
-    TITLE GUIDELINES:
-    - Maximum 30 characters - be concise and punchy
-    - Start with action words or numbers when possible (e.g., "Fix", "Build", "3 Ways")
-    - Focus on the main benefit or outcome
-    - Avoid jargon - use simple, clear language
-    - Create curiosity or urgency
-    
-    SUBSCRIBE SUBTITLE GUIDELINES:
-    - Maximum 50 characters - encourage subscription
-    - Be specific about value (e.g., "Subscribe for more coding tips!")
-    - Use action words like "Subscribe", "Follow", "Join"
-    - Mention what viewers will get by subscribing
-    - Keep it friendly and enthusiastic
-    
-    YOUTUBE TAGS GUIDELINES:
-    - Provide 20-50 relevant tags for YouTube optimization
-    - Include primary keywords from the content
-    - Mix broad and specific tags (e.g., "programming", "python tutorial", "coding tips")
-    - Use trending hashtags when relevant
-    - Include channel/brand-related tags
-    - Consider search intent and popular queries
-    - Tags should be single words or short phrases
-    
-    YOUTUBE DESCRIPTION GUIDELINES:
-    - Minimum 300 characters for better SEO
-    - Start with a compelling hook that summarizes the value
-    - Include the most important tags as hashtags in the description
-    - Add a clear call-to-action (like, subscribe, comment)
-    - Structure: Hook → What viewers will learn → Call to action → Hashtags
-    - Write in an engaging, conversational tone
-    - Include relevant keywords naturally throughout
-    - End with 5-10 strategic hashtags from your tags list
-    
-    CRITICAL REQUIREMENTS:
-    - Each short must be {max_duration_seconds} seconds or less in duration
-    - You MUST return EXACTLY {max_shorts} shorts - no more, no less
-    - If there are fewer than {max_shorts} high-quality segments, you must still find {max_shorts} segments by lowering your quality standards slightly
-    - Find the BEST available content, but prioritize meeting the exact count requirement
-    - Only return fewer than {max_shorts} shorts if the content is completely unsuitable (e.g., just silence, random noise, or completely incoherent)
-    - Rank by quality - return the best segments first
-    - If you're struggling to find {max_shorts} distinct segments, you can use overlapping segments or split longer segments into smaller parts
-    
-    For each identified segment range, provide:
-    1. title: A catchy, engaging title for the short (maximum 30 characters) that captures the key value or hook
-    2. subscribe_subtitle: An encouraging call-to-action subtitle to get viewers to subscribe (maximum 50 characters)
-    3. description: A detailed YouTube description (minimum 300 characters) following the guidelines above
-    4. tags: A list of 20-50 relevant YouTube tags for optimization and discoverability
-    5. start_segment_index: The starting segment number (0-based)
-    6. end_segment_index: The ending segment number (0-based, inclusive)
-    7. The full transcript text for those segments combined
-    8. Reasoning why this range would work as a short (focus on hook, engagement, and completeness)
-    9. Estimated duration (must be ≤{max_duration_seconds} seconds) and key topics
-    
-    Note: There are {total_segments} segments total (numbered 0 to {total_segments-1}).
-    Each segment includes timing information to help you estimate durations.
-    
-    Segments:
-    {segments_text}
-    """
+You are an expert YouTube Shorts content creator specializing in identifying the most engaging segments from long-form video transcripts. Your task is to analyze video transcripts and extract segments that would make compelling YouTube Shorts.
+
+## PRIMARY OBJECTIVE
+Identify and extract exactly {max_shorts} YouTube Shorts segments (≤{max_duration_seconds} seconds each) that maximize viewer engagement and retention.
+
+## QUALITY CRITERIA (Ranked by Priority)
+1. **Hook Strength**: Segments with immediate attention-grabbing openings (compelling within first 3 seconds)
+2. **Self-Containment**: Complete thoughts/concepts that don't require additional context
+3. **Engagement Potential**: Content likely to generate comments, shares, saves
+4. **Educational Value**: Practical tips, insights, or surprising information
+5. **Emotional Impact**: Funny, inspiring, shocking, or thought-provoking moments
+
+## CONTENT PATTERNS TO PRIORITIZE
+- Immediate attention-grabbing statements or questions
+- Complete mini-stories or anecdotes
+- Step-by-step tips or tutorials
+- Before/after scenarios or transformations
+- Controversial or surprising statements
+- Practical advice that stands alone
+- Clear value propositions
+
+## OUTPUT REQUIREMENTS
+For each identified segment, provide:
+- **title**: Catchy title (≤30 characters, action words/numbers preferred)
+- **subscribe_subtitle**: Call-to-action subtitle (≤50 characters)
+- **description**: YouTube description (≥300 characters) with hook, value, CTA, hashtags
+- **tags**: 20-50 relevant YouTube optimization tags
+- **start_segment_index**: Starting segment number (0-based)
+- **end_segment_index**: Ending segment number (0-based, inclusive) 
+- **estimated_duration**: Duration estimate (e.g., "30-45 seconds")
+
+## CRITICAL CONSTRAINTS
+- Return EXACTLY {max_shorts} shorts - no exceptions
+- Each segment must be ≤{max_duration_seconds} seconds duration
+- Rank results by engagement potential (best first)
+- If fewer than {max_shorts} high-quality segments exist, lower standards but maintain count requirement
+- Use overlapping segments or split longer content if needed to reach {max_shorts}
+
+## CONTENT ANALYSIS INSTRUCTIONS
+The video transcript will be provided wrapped in <VIDEO_TRANSCRIPT></VIDEO_TRANSCRIPT> tags. Each segment includes timing information in the format:
+"Segment N: [start_time-end_time, duration] transcript_text"
+
+Use timing information to estimate durations and ensure segments fit within the {max_duration_seconds}-second limit.
+"""
+
+def _create_user_prompt(segments_text: str, total_segments: int) -> str:
+    """Create the user prompt with the video transcript."""
+    return f"""
+Analyze the following video transcript and identify the best YouTube Shorts segments according to the criteria provided.
+
+Total segments available: {total_segments} (numbered 0 to {total_segments-1})
+
+<VIDEO_TRANSCRIPT>
+{segments_text}
+</VIDEO_TRANSCRIPT>
+"""
 
 
 def _call_openai_api(
-    prompt: str, settings: AppSettings
+    system_prompt: str, user_prompt: str, settings: AppSettings
 ) -> YouTubeShortsRecommendationResponse:
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
 
     response = client.beta.chat.completions.parse(
         model=settings.model_name,
         messages=[
-            {
-                "role": "system",
-                "content": "You are an expert YouTube content creator who specializes in identifying the best moments from long-form videos that would work as engaging YouTube Shorts.",
-            },
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
         ],
         response_format=YouTubeShortsRecommendationResponse,
         temperature=0.3,
@@ -162,7 +138,7 @@ def _add_timestamps_to_shorts(
                 f"Invalid segment range: {short.start_segment_index}-{short.end_segment_index}"
             )
             continue
-        
+
         short_with_speech = YouTubeShortWithSpeech.model_validate(
             {
                 **short.model_dump(),
@@ -190,13 +166,12 @@ def generate_youtube_shorts_recommendations(
             storage.read(output_file)
         )
     segments_text, total_segments = _format_segments_for_analysis(speech)
-    prompt = _create_analysis_prompt(
-        segments_text,
-        total_segments,
+    system_prompt = _create_system_prompt(
         settings.shorts_number,
         settings.short_duration_seconds * settings.speed_factor,
     )
-    analysis = _call_openai_api(prompt, settings)
+    user_prompt = _create_user_prompt(segments_text, total_segments)
+    analysis = _call_openai_api(system_prompt, user_prompt, settings)
     res = _add_timestamps_to_shorts(analysis, speech)
     storage.save(output_file, res.model_dump_json(indent=2))
     return res

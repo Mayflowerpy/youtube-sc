@@ -53,14 +53,6 @@ class YouTubeShortWithSpeech(YouTubeShort):
     )
 
 
-class YouTubeShortsRecommendationResponse(BaseModel):
-    shorts: list[YouTubeShort] = Field(
-        description="List of identified YouTube shorts segments"
-    )
-    total_shorts_found: int = Field(description="Total number of shorts identified")
-    analysis_summary: str = Field(description="Overall summary of the analysis")
-
-
 class YouTubeShortsRecommendation(BaseModel):
     shorts: list[YouTubeShortWithSpeech] = Field(
         description="List of identified YouTube shorts segments"
