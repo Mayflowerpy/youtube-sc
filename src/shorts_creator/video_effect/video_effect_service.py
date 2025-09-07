@@ -61,11 +61,13 @@ def apply_effects(
     video_name, video_ext = video_path.name.split(".")
 
     curr_video_path = video_path
-
-    # Construct captions path based on short index
-    captions_path = output_dir / f"short_{short_index}_captions.ass"
-
-    effects = strategy.create_effects(short, settings.speed_factor, captions_path)
+    
+    effects = strategy.create_effects(
+        short=short,
+        speed_factor=settings.speed_factor,
+        data_dir=output_dir,
+        short_index=short_index,
+    )
 
     output_file = None
     old_video_files = []

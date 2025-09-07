@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from typing import Optional, Literal, List
 import logging
 import re
-import tempfile
 from ffmpeg.nodes import Stream
 from shorts_creator.assets.fonts import get_font_path
 import pysubs2
@@ -262,6 +261,8 @@ class CaptionsEffect(VideoEffect):
     def __init__(
         self,
         youtube_short: YouTubeShortWithSpeech,
+        output_dir: Path,
+        short_index: int,
         font_name: str = "Arial",
         font_size: int = 42,
         font_color: tuple[int, int, int] = (255, 255, 255),
@@ -279,6 +280,8 @@ class CaptionsEffect(VideoEffect):
         
         Args:
             youtube_short: Short with speech segments
+            output_dir: Directory to save ASS file
+            short_index: Index of the short (for filename)
             font_name: Font family name (default: Arial)
             font_size: Font size in pixels (default: 42)
             font_color: RGB color tuple for text (default: white)
@@ -305,15 +308,8 @@ class CaptionsEffect(VideoEffect):
         self.target_h = target_h
         self.log = logging.getLogger(__name__)
         
-        # Create temporary ASS file that OS can clean up
-        self.temp_file = tempfile.NamedTemporaryFile(
-            mode='w+', 
-            suffix='.ass', 
-            prefix='captions_', 
-            delete=False,
-            encoding='utf-8'
-        )
-        self.output_path = Path(self.temp_file.name)
+        # Create ASS file path in the output directory
+        self.output_path = output_dir / f"short_{short_index}_captions.ass"
         
         # Generate the ASS file
         self._generate_ass_file()
