@@ -261,7 +261,7 @@ class CaptionsEffect(VideoEffect):
         output_dir: Path,
         short_index: int,
         font_name: str = "Comic Neue Bold",
-        font_size: int = 96,
+        font_size: int = 100,
         font_color: tuple[int, int, int] = (255, 255, 255),
         outline_color: tuple[int, int, int] = (0, 0, 0),
         outline_width: float = 5,
@@ -272,6 +272,7 @@ class CaptionsEffect(VideoEffect):
         target_h: int = 1920,
         highlight_color: tuple[int, int, int] = (255, 255, 0),
         dim_color: tuple[int, int, int] = (255, 255, 255),
+        max_words_per_line=10,
     ):
         self.youtube_short = youtube_short
         self.font_size = font_size
@@ -287,6 +288,7 @@ class CaptionsEffect(VideoEffect):
         self.dim_color = dim_color
         self.font_name = font_name
         self.output_path = output_dir / f"short_{short_index}_captions.ass"
+        self.max_words_per_line = max_words_per_line
 
     def _create_word_highlight(self, words: List[str], highlight_idx: int) -> str:
         if highlight_idx >= len(words):
@@ -366,17 +368,24 @@ class CaptionsEffect(VideoEffect):
             )
             words = processed_text.split()
 
-            for word_idx, (_, word_start, word_end) in enumerate(word_timings):
-                highlighted_text = self._create_word_highlight(words, word_idx)
-
-                subs.append(
-                    SSAEvent(
-                        start=int(word_start * 1000),
-                        end=int(word_end * 1000),
-                        text=highlighted_text,
-                        style="CaptionsStyle",
+            lines = [
+                words[i : i + self.max_words_per_line]
+                for i in range(0, len(words), self.max_words_per_line)
+            ]
+            for i in range(len(lines)):
+                line = lines[i]
+                for j in range(len(line)):
+                    word_idx = i * self.max_words_per_line + j
+                    _, word_start, word_end = word_timings[word_idx]
+                    highlighted_text = self._create_word_highlight(line, j)
+                    subs.append(
+                        SSAEvent(
+                            start=int(word_start * 1000),
+                            end=int(word_end * 1000),
+                            text=highlighted_text,
+                            style="CaptionsStyle",
+                        )
                     )
-                )
 
         subs.save(str(self.output_path), encoding="utf-8")
 
