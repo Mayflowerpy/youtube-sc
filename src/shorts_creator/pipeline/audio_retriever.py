@@ -9,7 +9,8 @@ def retrieve_audio(
     video_path: Path,
     output_file: Path,
     refresh: bool,
-    duration_seconds: int | None = None,
+    duration_seconds: int | None,
+    debug: bool,
 ) -> Path:
     if output_file.exists() and not refresh:
         return output_file
@@ -23,7 +24,7 @@ def retrieve_audio(
         )
         ffmpeg.input(str(video_path)).output(
             str(output_file), acodec="libmp3lame", **kwargs
-        ).overwrite_output().run(quiet=True)
+        ).overwrite_output().run(quiet=not debug)
 
     except Exception as e:
         log.error(

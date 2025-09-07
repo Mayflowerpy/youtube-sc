@@ -6,7 +6,7 @@ from logging import getLogger
 from shorts_creator.domain.models import YouTubeShort
 import ffmpeg
 
-logger = getLogger(__name__)
+log = getLogger(__name__)
 
 
 def _create_file_name(
@@ -15,7 +15,11 @@ def _create_file_name(
     return f"{video_name}_{effect.__class__.__name__}_{index}.{video_ext}"
 
 
-def _write_output_video(video_streams: list[ffmpeg.nodes.Stream], output_file: Path):
+def _write_output_video(
+    video_streams: list[ffmpeg.nodes.Stream],
+    output_file: Path,
+    debug: bool,
+):
     out_kwargs = {
         "vcodec": "libx264",
         "acodec": "aac",
@@ -32,7 +36,10 @@ def _write_output_video(video_streams: list[ffmpeg.nodes.Stream], output_file: P
         "muxdelay": 0,
         "x264-params": "scenecut=0:open_gop=0:ref=1",
     }
-    ffmpeg.output(*video_streams, str(output_file), **out_kwargs).run(quiet=True)
+    ffmpeg.output(*video_streams, str(output_file), **out_kwargs).run(
+        overwrite_output=True,
+        quiet=not debug,
+    )
 
 
 def _delete_old_files(old_video_files: list[Path]):
@@ -40,7 +47,7 @@ def _delete_old_files(old_video_files: list[Path]):
         try:
             file.unlink()
         except Exception as e:
-            logger.warning(f"Failed to delete old video file {file}: {e}")
+            log.warning(f"Failed to delete old video file {file}: {e}")
 
 
 def apply_effects(
@@ -49,7 +56,6 @@ def apply_effects(
     video_path: Path,
     strategy: VideoEffectsStrategy,
     output_dir: Path,
-    debug: bool = False,
 ) -> Path:
     video_name, video_ext = video_path.name.split(".")
 
@@ -63,13 +69,14 @@ def apply_effects(
     for i, effect in enumerate(effects):
         if output_file is not None:
             old_video_files.append(output_file)
+        log.debug(f"Applying effect: {effect.__class__.__name__} to {curr_video_path}")
         video_stream = ffmpeg.input(str(curr_video_path), fflags="+genpts")
         output_file = output_dir / _create_file_name(video_name, video_ext, effect, i)
         video_stream = effect.apply(video_stream)
-        _write_output_video(video_stream, output_file)
+        _write_output_video(video_stream, output_file, settings.debug)
         curr_video_path = output_file
 
-    if not debug:
+    if not settings.debug:
         _delete_old_files(old_video_files)
 
     return curr_video_path

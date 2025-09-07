@@ -15,8 +15,6 @@ from shorts_creator.video_effect.strategies import VideoEffectsStrategy
 from shorts_creator.settings.settings import parse_args, AppSettings
 
 
-logging.basicConfig(level=logging.INFO)
-
 log = logging.getLogger(__name__)
 
 
@@ -39,6 +37,8 @@ def process_shorts_with_progress(
                 short=short,
                 output_dir=videos_output_dir,
                 short_index=i,
+                debug=settings.debug,
+                refresh=settings.refresh,
             )
             pbar.set_postfix(
                 step="Video cut",
@@ -61,7 +61,7 @@ def process_shorts_with_progress(
                 ),
             )
             video_path.unlink(missing_ok=True)
-            final_video_path = final_path.rename(video_path)
+            final_path.rename(video_path)
 
             pbar.update(1)
             pbar.set_postfix(
@@ -74,6 +74,8 @@ def process_shorts_with_progress(
 
 def main():
     settings = parse_args()
+    logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
+
     log.info(
         f"Starting shorts creation: refresh={settings.refresh}, video = {settings.video_path}"
     )
@@ -85,6 +87,7 @@ def main():
         settings.data_dir / "extracted_audio.mp3",
         refresh=settings.refresh,
         duration_seconds=settings.duration_seconds,
+        debug=settings.debug,
     )
 
     log.info(f"Audio extracted to {audio_file}")

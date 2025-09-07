@@ -19,6 +19,7 @@ class AppSettings(BaseSettings):
     speed_factor: float = 1.35
     whisper_model_size: Literal["medium", "large"] = "medium"
     video_effect_strategy: VideoEffectsStrategy
+    debug: bool
 
     class Config:
         env_file = ".env"
@@ -64,6 +65,12 @@ def parse_args() -> AppSettings:
         default="basic",
         help=f"Video effects strategy to use: {', '.join([s.name.lower() for s in VideoEffectsStrategy])}",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Enable debug mode with verbose logging",
+    )
     args = parser.parse_args()
     return AppSettings(
         refresh=args.no_refresh,
@@ -72,4 +79,5 @@ def parse_args() -> AppSettings:
         duration_seconds=args.duration,
         short_duration_seconds=args.short_duration,
         video_effect_strategy=VideoEffectsStrategy[args.strategy.upper()],
+        debug=args.debug,
     )  # type: ignore

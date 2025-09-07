@@ -20,7 +20,11 @@ def create_subtitle_file(
 
 
 def cut_video_segment_with_effects(
-    input_video: Path, output_video: Path, start_time: float, end_time: float
+    input_video: Path,
+    output_video: Path,
+    start_time: float,
+    end_time: float,
+    debug: bool,
 ) -> Path:
     """Cut a clean video segment only.
 
@@ -59,7 +63,7 @@ def cut_video_segment_with_effects(
             movflags="+faststart",
         )
 
-        ffmpeg.run(output_stream, quiet=True)
+        ffmpeg.run(output_stream, overwrite_output=True, quiet=not debug)
 
         return output_video
 
@@ -77,7 +81,9 @@ def create_short_video(
     input_video: Path,
     short: YouTubeShort,
     output_dir: Path,
-    short_index: int = 0,
+    short_index: int,
+    debug: bool,
+    refresh: bool,
 ) -> Path:
     """Create an enhanced short video from a YouTubeShort analysis result."""
     output_filename = (
@@ -85,9 +91,14 @@ def create_short_video(
     )
     output_path = output_dir / output_filename
 
+    if output_path.exists() and not refresh:
+        log.debug(f"Short video already exists, skipping: {output_path}")
+        return output_path
+
     return cut_video_segment_with_effects(
         input_video=input_video,
         output_video=output_path,
         start_time=short.start_time,
         end_time=short.end_time,
+        debug=debug,
     )
