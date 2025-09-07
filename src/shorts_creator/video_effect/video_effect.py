@@ -1,11 +1,8 @@
 from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import Optional, Literal, List
-import logging
-import re
 from ffmpeg.nodes import Stream
 from shorts_creator.assets.fonts import get_font_path
-import pysubs2
 from pysubs2 import SSAFile, SSAEvent, SSAStyle, Alignment, Color
 from shorts_creator.domain.models import YouTubeShortWithSpeech
 
@@ -271,13 +268,10 @@ class CaptionsEffect(VideoEffect):
         margin_bottom: int = 150,
         max_chars_per_line: int = 20,
         alignment: Alignment = Alignment.BOTTOM_CENTER,
-        bold: bool = True,
         target_w: int = 1080,
         target_h: int = 1920,
-        enable_word_highlighting: bool = True,
         highlight_color: tuple[int, int, int] = (255, 255, 0),
         dim_color: tuple[int, int, int] = (255, 255, 255),
-        use_ffmpeg_captions: bool = False,
     ):
         self.youtube_short = youtube_short
         self.font_name = font_name
@@ -288,268 +282,50 @@ class CaptionsEffect(VideoEffect):
         self.margin_bottom = margin_bottom
         self.max_chars_per_line = max_chars_per_line
         self.alignment = alignment
-        self.bold = bold
         self.target_w = target_w
         self.target_h = target_h
-        self.enable_word_highlighting = enable_word_highlighting
         self.highlight_color = highlight_color
         self.dim_color = dim_color
-        self.use_ffmpeg_captions = use_ffmpeg_captions
-        self.log = logging.getLogger(__name__)
-
-        # Get the actual font path
         self.font_path = str(get_font_path(font_name))
-
-        # Create ASS file path in the output directory
         self.output_path = output_dir / f"short_{short_index}_captions.ass"
 
-    def _capitalize_sentence(self, text: str) -> str:
-        """
-        Ensure the first word of the text starts with a capital letter for proper sentences.
+    def _create_word_highlight(self, words: List[str], highlight_idx: int) -> str:
+        if highlight_idx >= len(words):
+            return " ".join(words)
 
-        Args:
-            text: Input text
+        yellow = f"{self.highlight_color[2]:02X}{self.highlight_color[1]:02X}{self.highlight_color[0]:02X}"
+        white = f"{self.dim_color[2]:02X}{self.dim_color[1]:02X}{self.dim_color[0]:02X}"
 
-        Returns:
-            Text with first letter capitalized
-        """
-        if not text:
-            return text
+        result_words = []
+        for i, word in enumerate(words):
+            if i == highlight_idx:
+                result_words.append(f"{{\\c&H{yellow}&}}{word}{{\\c&H{white}&}}")
+            else:
+                result_words.append(word)
 
-        # Find the first alphabetic character and capitalize it
-        text = text.strip()
-        if text:
-            # Handle cases where text might start with quotes or other punctuation
-            for i, char in enumerate(text):
-                if char.isalpha():
-                    return text[:i] + char.upper() + text[i + 1 :]
-
-        return text
+        return f"{{\\c&H{white}&}}" + " ".join(result_words)
 
     def _calculate_word_timings(
         self, text: str, start_time: float, end_time: float
     ) -> List[tuple[str, float, float]]:
-        """
-        Calculate timing for each word in a text segment based on actual speech duration.
-
-        Args:
-            text: The text to split into words
-            start_time: Segment start time in seconds
-            end_time: Segment end time in seconds
-
-        Returns:
-            List of (word, word_start_time, word_end_time) tuples
-        """
         words = text.split()
         if not words:
             return []
 
-        # Calculate total duration available
-        segment_duration = end_time - start_time
-
-        # Handle very short segments - skip word highlighting
-        if segment_duration < 0.3:
-            return [(text, start_time, end_time)]
-
-        # Calculate weight for each word (longer words take more time)
-        word_weights = []
-        for word in words:
-            # Base weight + character-based weight + punctuation consideration
-            base_weight = 1.0
-            char_weight = len(word.strip(".,!?;:")) * 0.08
-            punct_weight = 0.1 if any(c in word for c in ".,!?;:") else 0
-            word_weights.append(base_weight + char_weight + punct_weight)
-
-        total_weight = sum(word_weights)
-
-        # Distribute timing proportionally
-        word_timings = []
+        duration = end_time - start_time
+        word_duration = duration / len(words)
+        timings = []
         current_time = start_time
 
-        for i, (word, weight) in enumerate(zip(words, word_weights)):
-            # Calculate word duration based on weight
-            word_duration = (weight / total_weight) * segment_duration
-            word_end_time = current_time + word_duration
+        for word in words:
+            timings.append((word, current_time, current_time + word_duration))
+            current_time += word_duration
 
-            # Ensure last word ends exactly at segment end
-            if i == len(words) - 1:
-                word_end_time = end_time
-
-            word_timings.append((word, current_time, word_end_time))
-            current_time = word_end_time
-
-        return word_timings
-
-    def _create_highlighted_text(self, words: List[str], highlight_index: int) -> str:
-        """
-        Create ASS-formatted text with one word highlighted and others dimmed.
-
-        Args:
-            words: List of words in the text
-            highlight_index: Index of word to highlight (0-based)
-
-        Returns:
-            ASS-formatted text with color tags
-        """
-        if (
-            not self.enable_word_highlighting
-            or highlight_index < 0
-            or highlight_index >= len(words)
-        ):
-            return " ".join(words)
-
-        # Convert RGB to BGR hex format for ASS (ASS uses BGR, not RGB)
-        highlight_hex = f"{self.highlight_color[2]:02X}{self.highlight_color[1]:02X}{self.highlight_color[0]:02X}"
-        dim_hex = (
-            f"{self.dim_color[2]:02X}{self.dim_color[1]:02X}{self.dim_color[0]:02X}"
-        )
-
-        formatted_words = []
-        for i, word in enumerate(words):
-            if i == highlight_index:
-                # Highlighted word - bright white
-                formatted_words.append(
-                    f"{{\\c&H{highlight_hex}&}}{word}{{\\c&H{dim_hex}&}}"
-                )
-            else:
-                # Dimmed word - gray
-                formatted_words.append(word)
-
-        # Apply dimmed color to the entire text, then override highlighted word
-        full_text = " ".join(words)
-        if highlight_index < len(words):
-            # Replace the specific word with highlighted version
-            words_before = words[:highlight_index]
-            highlighted_word = words[highlight_index]
-            words_after = words[highlight_index + 1 :]
-
-            text_before = " ".join(words_before) + (" " if words_before else "")
-            text_after = (" " if words_after else "") + " ".join(words_after)
-
-            return f"{{\\c&H{dim_hex}&}}{text_before}{{\\c&H{highlight_hex}&}}{highlighted_word}{{\\c&H{dim_hex}&}}{text_after}"
-
-        return f"{{\\c&H{dim_hex}&}}{full_text}"
-
-    def _wrap_text_for_mobile(self, text: str) -> str:
-        """
-        Wrap text intelligently for mobile YouTube Shorts captions.
-        STRICTLY enforces 2-line maximum with ASS \\N line breaks.
-
-        Args:
-            text: Text to wrap (may contain ASS color tags)
-
-        Returns:
-            Formatted text with \\N line breaks for ASS format (EXACTLY 2 lines max)
-        """
-        # If text contains ASS color tags, handle it carefully but still enforce 2 lines
-        has_color_tags = "{\\c&H" in text
-
-        # Clean up text - remove extra spaces and normalize
-        if not has_color_tags:
-            text = re.sub(r"\s+", " ", text.strip())
-
-        # Use the strict 2-line method
-        line1, line2 = self._create_strict_two_lines(text)
-
-        # Format for ASS
-        if line1 and line2:
-            return f"{line1}\\N{line2}"
-        elif line1:
-            return line1
-        else:
-            return text
-
-    def _create_strict_two_lines(self, text: str) -> tuple[str, str]:
-        """
-        Create exactly 2 lines of text, no more, no less.
-        Handles ASS color tags properly by counting only visible characters.
-
-        Args:
-            text: Input text (may contain ASS color tags)
-
-        Returns:
-            Tuple of (line1, line2) - both strings, line2 may be empty
-        """
-        # Clean and split text
-        text = text.strip()
-
-        # If text contains ASS color tags, we need to be more careful
-        has_color_tags = "{\\c&H" in text
-
-        if has_color_tags:
-            # For colored text, don't wrap to avoid breaking formatting
-            # Just truncate if too long
-            visible_length = len(re.sub(r"\{\\c&H[0-9A-Fa-f]{6}&\}", "", text))
-            if visible_length <= self.max_chars_per_line:
-                return (text, "")
-            else:
-                # Truncate the visible text but keep color formatting
-                return (text, "")  # Let it overflow rather than break formatting
-
-        # Regular text processing
-        words = text.split()
-        if not words:
-            return ("", "")
-
-        # If text is short enough for one line, return it as line1
-        if len(text) <= self.max_chars_per_line:
-            return (text, "")
-
-        # Build lines with strict character limits
-        line1_words = []
-        line1_length = 0
-
-        for i, word in enumerate(words):
-            test_length = line1_length + len(word) + (1 if line1_length > 0 else 0)
-            if test_length <= self.max_chars_per_line:
-                line1_words.append(word)
-                line1_length = test_length
-            else:
-                # Move remaining words to line2, but limit to max chars
-                remaining_words = words[i:]
-                line2_words = []
-                line2_length = 0
-
-                for word in remaining_words:
-                    test_length = (
-                        line2_length + len(word) + (1 if line2_length > 0 else 0)
-                    )
-                    if test_length <= self.max_chars_per_line:
-                        line2_words.append(word)
-                        line2_length = test_length
-                    else:
-                        # Can't fit more words, truncate with ellipsis if needed
-                        if line2_words:
-                            line2_text = " ".join(line2_words)
-                            if len(line2_text) <= self.max_chars_per_line - 1:
-                                line2_text += "…"
-                        else:
-                            # Single word too long
-                            if len(word) <= self.max_chars_per_line:
-                                line2_text = word
-                            else:
-                                line2_text = word[: self.max_chars_per_line - 1] + "…"
-                        break
-                else:
-                    # All remaining words fit
-                    line2_text = " ".join(line2_words) if line2_words else ""
-
-                line1_text = " ".join(line1_words)
-                return (line1_text, line2_text)
-
-        # If we get here, all words fit in line1
-        line1_text = " ".join(line1_words)
-        return (line1_text, "")
+        return timings
 
     def _create_style(self) -> SSAStyle:
-        """Create ASS style with configurable parameters."""
-        # Use font family name for ASS, not file path
-        font_family_name = (
-            "Comic Neue" if "comic-neue" in self.font_name.lower() else "Roboto"
-        )
-
         return SSAStyle(
-            fontname=font_family_name,
+            fontname="Comic Neue",
             fontsize=self.font_size,
             primarycolor=Color(
                 r=self.font_color[0], g=self.font_color[1], b=self.font_color[2], a=0
@@ -561,95 +337,53 @@ class CaptionsEffect(VideoEffect):
                 a=0,
             ),
             outline=self.outline_width,
-            shadow=0,  # No shadow (outline provides contrast)
+            shadow=0,
             alignment=self.alignment,
             marginv=self.margin_bottom,
-            bold=self.bold,
-            encoding=1,  # UTF-8 encoding
+            bold=True,
+            encoding=1,
         )
 
     def _generate_ass_file(self):
-        """
-        Generate ASS subtitle file for the YouTube Short.
-
-        Returns:
-            ASS file content as string
-        """
-        self.log.info(f"Generating ASS captions for short: {self.youtube_short.title}")
-
-        # Create new SSA file with proper resolution for YouTube Shorts (9:16)
         subs = SSAFile()
         subs.info["Title"] = self.youtube_short.title
         subs.info["PlayResX"] = str(self.target_w)
         subs.info["PlayResY"] = str(self.target_h)
-
-        # Add configurable style
         subs.styles["CaptionsStyle"] = self._create_style()
 
-        # Generate subtitle events for each speech segment
         for segment in self.youtube_short.speech:
-            if segment.text.strip():  # Skip empty segments
-                # Convert to seconds and adjust for short offset
-                start_time = segment.start_time - self.youtube_short.start_time
-                end_time = segment.end_time - self.youtube_short.start_time
+            if not segment.text.strip():
+                continue
 
-                # Ensure positive timing
-                start_time = max(0.0, start_time)
-                end_time = max(start_time + 0.1, end_time)  # Minimum 100ms duration
+            start_time = max(0.0, segment.start_time - self.youtube_short.start_time)
+            end_time = max(
+                start_time + 0.1, segment.end_time - self.youtube_short.start_time
+            )
 
-                # Capitalize first letter for proper sentence structure
-                capitalized_text = self._capitalize_sentence(segment.text)
+            processed_text = segment.text.strip().capitalize()
 
-                # Wrap text for mobile viewing
-                formatted_text = self._wrap_text_for_mobile(capitalized_text)
+            word_timings = self._calculate_word_timings(
+                processed_text, start_time, end_time
+            )
+            words = processed_text.split()
 
-                if self.enable_word_highlighting:
-                    # Generate word-by-word highlighted events
-                    word_timings = self._calculate_word_timings(
-                        capitalized_text, start_time, end_time
-                    )
-                    words = capitalized_text.split()
+            for word_idx, (_, word_start, word_end) in enumerate(word_timings):
+                highlighted_text = self._create_word_highlight(words, word_idx)
 
-                    # Create overlapping events for each word highlight
-                    for word_idx, (_, word_start, word_end) in enumerate(word_timings):
-                        # Create highlighted text for this word
-                        highlighted_text = self._create_highlighted_text(
-                            words, word_idx
-                        )
-                        wrapped_text = self._wrap_text_for_mobile(highlighted_text)
-
-                        # Convert to milliseconds
-                        start_ms = int(word_start * 1000)
-                        end_ms = int(word_end * 1000)
-
-                        event = SSAEvent(
-                            start=start_ms,
-                            end=end_ms,
-                            text=wrapped_text,
-                            style="CaptionsStyle",
-                        )
-
-                        subs.append(event)
-                else:
-                    # Standard non-highlighted caption
-                    start_ms = int(start_time * 1000)
-                    end_ms = int(end_time * 1000)
-
-                    event = SSAEvent(
-                        start=start_ms,
-                        end=end_ms,
-                        text=formatted_text,
+                subs.append(
+                    SSAEvent(
+                        start=int(word_start * 1000),
+                        end=int(word_end * 1000),
+                        text=highlighted_text,
                         style="CaptionsStyle",
                     )
+                )
 
-                    subs.append(event)
-
-        # Save ASS file
         subs.save(str(self.output_path), encoding="utf-8")
 
     def apply(self, video_stream: Stream) -> list[Stream]:
         self._generate_ass_file()
-        
+
         v = video_stream.video
         a = video_stream.audio
         v = v.filter("subtitles", str(self.output_path))
