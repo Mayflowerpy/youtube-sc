@@ -397,6 +397,4 @@ class CaptionsEffect(VideoEffect):
         v = video_stream.video
         a = video_stream.audio
         v = v.filter("subtitles", str(self.output_path))
-        if not self.debug:
-            self.output_path.unlink(missing_ok=True)
         return [v, a]
