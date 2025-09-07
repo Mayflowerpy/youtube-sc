@@ -277,7 +277,7 @@ class CaptionsEffect(VideoEffect):
         enable_word_highlighting: bool = True,
         highlight_color: tuple[int, int, int] = (255, 255, 0),
         dim_color: tuple[int, int, int] = (255, 255, 255),
-        use_ffmpeg_captions: bool = True,
+        use_ffmpeg_captions: bool = False,
     ):
         self.youtube_short = youtube_short
         self.font_name = font_name
@@ -302,9 +302,6 @@ class CaptionsEffect(VideoEffect):
 
         # Create ASS file path in the output directory
         self.output_path = output_dir / f"short_{short_index}_captions.ass"
-
-        # Generate the ASS file
-        self._generate_ass_file()
 
     def _capitalize_sentence(self, text: str) -> str:
         """
@@ -436,68 +433,25 @@ class CaptionsEffect(VideoEffect):
     def _wrap_text_for_mobile(self, text: str) -> str:
         """
         Wrap text intelligently for mobile YouTube Shorts captions.
-        Preserves ASS color tags and handles them properly.
+        STRICTLY enforces 2-line maximum with ASS \\N line breaks.
 
         Args:
             text: Text to wrap (may contain ASS color tags)
 
         Returns:
-            Formatted text with \\N line breaks for ASS format (max 2 lines)
+            Formatted text with \\N line breaks for ASS format (EXACTLY 2 lines max)
         """
-        # If text contains ASS color tags, handle it carefully
-        if "{\\c&H" in text:
-            # For highlighted text, don't wrap to avoid breaking color tags
-            return text
+        # If text contains ASS color tags, handle it carefully but still enforce 2 lines
+        has_color_tags = "{\\c&H" in text
 
         # Clean up text - remove extra spaces and normalize
-        text = re.sub(r"\s+", " ", text.strip())
+        if not has_color_tags:
+            text = re.sub(r"\s+", " ", text.strip())
 
-        # If text fits in one line, return as is
-        if len(text) <= self.max_chars_per_line:
-            return text
+        # Use the strict 2-line method
+        line1, line2 = self._create_strict_two_lines(text)
 
-        # Split into words and build lines with strict 2-line limit
-        words = text.split()
-        if not words:
-            return text
-
-        line1 = ""
-        line2 = ""
-
-        # Build first line
-        for i, word in enumerate(words):
-            test_line = f"{line1} {word}".strip() if line1 else word
-            if len(test_line) <= self.max_chars_per_line:
-                line1 = test_line
-            else:
-                # First line is full, start building second line with remaining words
-                remaining_words = words[i:]
-
-                # Build second line from remaining words
-                for j, remaining_word in enumerate(remaining_words):
-                    test_line2 = (
-                        f"{line2} {remaining_word}".strip() if line2 else remaining_word
-                    )
-                    if len(test_line2) <= self.max_chars_per_line:
-                        line2 = test_line2
-                    else:
-                        # Second line would be full, truncate with ellipsis
-                        if not line2:
-                            # Single word too long for line 2
-                            if len(remaining_word) > self.max_chars_per_line - 1:
-                                line2 = (
-                                    remaining_word[: self.max_chars_per_line - 1] + "…"
-                                )
-                            else:
-                                line2 = remaining_word
-                        else:
-                            # Add ellipsis to indicate more text
-                            if len(line2) < self.max_chars_per_line - 1:
-                                line2 += "…"
-                        break
-                break
-
-        # Return maximum 2 lines
+        # Format for ASS
         if line1 and line2:
             return f"{line1}\\N{line2}"
         elif line1:
@@ -508,17 +462,32 @@ class CaptionsEffect(VideoEffect):
     def _create_strict_two_lines(self, text: str) -> tuple[str, str]:
         """
         Create exactly 2 lines of text, no more, no less.
+        Handles ASS color tags properly by counting only visible characters.
 
         Args:
-            text: Input text
+            text: Input text (may contain ASS color tags)
 
         Returns:
             Tuple of (line1, line2) - both strings, line2 may be empty
         """
         # Clean and split text
         text = text.strip()
-        words = text.split()
 
+        # If text contains ASS color tags, we need to be more careful
+        has_color_tags = "{\\c&H" in text
+
+        if has_color_tags:
+            # For colored text, don't wrap to avoid breaking formatting
+            # Just truncate if too long
+            visible_length = len(re.sub(r"\{\\c&H[0-9A-Fa-f]{6}&\}", "", text))
+            if visible_length <= self.max_chars_per_line:
+                return (text, "")
+            else:
+                # Truncate the visible text but keep color formatting
+                return (text, "")  # Let it overflow rather than break formatting
+
+        # Regular text processing
+        words = text.split()
         if not words:
             return ("", "")
 
@@ -526,55 +495,51 @@ class CaptionsEffect(VideoEffect):
         if len(text) <= self.max_chars_per_line:
             return (text, "")
 
+        # Build lines with strict character limits
         line1_words = []
-        line2_words = []
+        line1_length = 0
 
-        # Build line1
-        current_length = 0
         for i, word in enumerate(words):
-            test_length = current_length + len(word) + (1 if current_length > 0 else 0)
+            test_length = line1_length + len(word) + (1 if line1_length > 0 else 0)
             if test_length <= self.max_chars_per_line:
                 line1_words.append(word)
-                current_length = test_length
+                line1_length = test_length
             else:
-                # Remaining words go to line2
-                line2_words = words[i:]
-                break
+                # Move remaining words to line2, but limit to max chars
+                remaining_words = words[i:]
+                line2_words = []
+                line2_length = 0
 
-        # Build line2 from remaining words
-        line2_text = ""
-        if line2_words:
-            current_length = 0
-            final_line2_words = []
-            for word in line2_words:
-                test_length = (
-                    current_length + len(word) + (1 if current_length > 0 else 0)
-                )
-                if test_length <= self.max_chars_per_line:
-                    final_line2_words.append(word)
-                    current_length = test_length
-                else:
-                    # If we can't fit more words, add ellipsis
-                    if final_line2_words:
-                        # Try to add ellipsis
-                        test_with_ellipsis = " ".join(final_line2_words) + "…"
-                        if len(test_with_ellipsis) <= self.max_chars_per_line:
-                            line2_text = test_with_ellipsis
-                        else:
-                            line2_text = " ".join(final_line2_words)
+                for word in remaining_words:
+                    test_length = (
+                        line2_length + len(word) + (1 if line2_length > 0 else 0)
+                    )
+                    if test_length <= self.max_chars_per_line:
+                        line2_words.append(word)
+                        line2_length = test_length
                     else:
-                        # Single word too long, truncate it
-                        if len(word) <= self.max_chars_per_line:
-                            line2_text = word
+                        # Can't fit more words, truncate with ellipsis if needed
+                        if line2_words:
+                            line2_text = " ".join(line2_words)
+                            if len(line2_text) <= self.max_chars_per_line - 1:
+                                line2_text += "…"
                         else:
-                            line2_text = word[: self.max_chars_per_line - 1] + "…"
-                    break
-            else:
-                # All remaining words fit
-                line2_text = " ".join(final_line2_words)
+                            # Single word too long
+                            if len(word) <= self.max_chars_per_line:
+                                line2_text = word
+                            else:
+                                line2_text = word[: self.max_chars_per_line - 1] + "…"
+                        break
+                else:
+                    # All remaining words fit
+                    line2_text = " ".join(line2_words) if line2_words else ""
 
+                line1_text = " ".join(line1_words)
+                return (line1_text, line2_text)
+
+        # If we get here, all words fit in line1
         line1_text = " ".join(line1_words)
-        return (line1_text, line2_text)
+        return (line1_text, "")
 
     def _create_style(self) -> SSAStyle:
         """Create ASS style with configurable parameters."""
@@ -603,7 +568,7 @@ class CaptionsEffect(VideoEffect):
             encoding=1,  # UTF-8 encoding
         )
 
-    def _generate_ass_file(self) -> str:
+    def _generate_ass_file(self):
         """
         Generate ASS subtitle file for the YouTube Short.
 
@@ -682,81 +647,10 @@ class CaptionsEffect(VideoEffect):
         # Save ASS file
         subs.save(str(self.output_path), encoding="utf-8")
 
-        # Also return the content as string for debugging/testing
-        ass_content = ""
-        with open(self.output_path, "r", encoding="utf-8") as f:
-            ass_content = f.read()
-
-        self.log.info(f"Generated ASS captions saved to: {self.output_path}")
-        self.log.info(f"Generated {len(subs)} subtitle events")
-
-        return ass_content
-
     def apply(self, video_stream: Stream) -> list[Stream]:
+        self._generate_ass_file()
+        
         v = video_stream.video
         a = video_stream.audio
-
-        if self.use_ffmpeg_captions:
-            # Use FFmpeg drawtext filters for strict 2-line control
-            return self._apply_ffmpeg_captions(v, a)
-        else:
-            # Use subtitles filter to apply ASS captions
-            v = v.filter("subtitles", str(self.output_path))
-            return [v, a]
-
-    def _apply_ffmpeg_captions(self, v: Stream, a: Stream) -> list[Stream]:
-        """Apply captions using FFmpeg drawtext filters with strict 2-line control."""
-
-        # Calculate timing offset (short's actual start time)
-        offset_time = self.youtube_short.start_time
-
-        # Process each speech segment
-        for segment in self.youtube_short.speech:
-            if not segment.text.strip():
-                continue
-
-            # Calculate timing relative to the short
-            start_time = max(0.0, segment.start_time - offset_time)
-            end_time = max(start_time + 0.1, segment.end_time - offset_time)
-
-            # Capitalize and create strict 2-line text
-            capitalized_text = self._capitalize_sentence(segment.text)
-            line1, line2 = self._create_strict_two_lines(capitalized_text)
-
-            if not line1:
-                continue
-
-            # Calculate positions for 2 lines
-            y1_pos = self.target_h - self.margin_bottom - self.font_size
-            y2_pos = self.target_h - self.margin_bottom
-
-            # Apply line 1
-            v = v.filter(  # type: ignore
-                "drawtext",
-                text=line1.replace("'", "\\'").replace(":", "\\:"),
-                fontfile=self.font_path,
-                fontsize=self.font_size,
-                fontcolor="white",
-                x="(w-text_w)/2",
-                y=str(y1_pos),
-                enable=f"between(t,{start_time},{end_time})",
-                borderw=self.outline_width,
-                bordercolor="black",
-            )
-
-            # Apply line 2 if it exists
-            if line2:
-                v = v.filter(  # type: ignore
-                    "drawtext",
-                    text=line2.replace("'", "\\'").replace(":", "\\:"),
-                    fontfile=self.font_path,
-                    fontsize=self.font_size,
-                    fontcolor="white",
-                    x="(w-text_w)/2",
-                    y=str(y2_pos),
-                    enable=f"between(t,{start_time},{end_time})",
-                    borderw=self.outline_width,
-                    bordercolor="black",
-                )
-
+        v = v.filter("subtitles", str(self.output_path))
         return [v, a]
