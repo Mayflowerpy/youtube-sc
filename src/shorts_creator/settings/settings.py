@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 import argparse
 from typing import Literal
+from shorts_creator.video_effect.strategies import VideoEffectsStrategy
 
 
 class AppSettings(BaseSettings):
@@ -17,6 +18,7 @@ class AppSettings(BaseSettings):
     short_duration_seconds: int = 60
     speed_factor: float = 1.35
     whisper_model_size: Literal["medium", "large"] = "medium"
+    video_effect_strategy: VideoEffectsStrategy
 
     class Config:
         env_file = ".env"
@@ -56,6 +58,12 @@ def parse_args() -> AppSettings:
         default=60,
         help="Duration of each short in seconds",
     )
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        default="basic",
+        help=f"Video effects strategy to use: {', '.join([s.name.lower() for s in VideoEffectsStrategy])}",
+    )
     args = parser.parse_args()
     return AppSettings(
         refresh=args.no_refresh,
@@ -63,4 +71,5 @@ def parse_args() -> AppSettings:
         shorts_number=args.shorts,
         duration_seconds=args.duration,
         short_duration_seconds=args.short_duration,
+        video_effect_strategy=VideoEffectsStrategy[args.strategy.upper()],
     )  # type: ignore

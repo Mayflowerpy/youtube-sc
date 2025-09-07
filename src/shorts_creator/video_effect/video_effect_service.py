@@ -55,7 +55,7 @@ def apply_effects(
 
     curr_video_path = video_path
 
-    effects = strategy.create_effects(short, settings)
+    effects = strategy.create_effects(short, settings.speed_factor)
 
     output_file = None
     old_video_files = []

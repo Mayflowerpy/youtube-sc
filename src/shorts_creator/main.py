@@ -8,11 +8,11 @@ from shorts_creator.pipeline import (
     shorts_generator,
     storage,
     video_cutter,
-    video_effecter,
 )
+from shorts_creator.domain.models import YouTubeShortsRecommendation
 from shorts_creator.video_effect import video_effect_service
 from shorts_creator.video_effect.strategies import VideoEffectsStrategy
-from shorts_creator.settings.settings import parse_args
+from shorts_creator.settings.settings import parse_args, AppSettings
 
 
 logging.basicConfig(level=logging.INFO)
@@ -20,19 +20,20 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def process_shorts_with_progress(shorts, settings, videos_output_dir):
-    """Process all shorts with progress bar and enhanced video effects."""
+def process_shorts_with_progress(
+    recommendation: YouTubeShortsRecommendation,
+    settings: AppSettings,
+    videos_output_dir: Path,
+):
     with tqdm(
-        total=len(shorts.shorts),
+        total=len(recommendation.shorts),
         desc="Processing shorts",
         unit="short",
         dynamic_ncols=True,
     ) as pbar:
-        for i, short in enumerate(shorts.shorts):
-            # Update progress bar description with current short
-            pbar.set_description(f"Processing short {i+1}/{len(shorts.shorts)}")
+        for i, short in enumerate(recommendation.shorts):
+            pbar.set_description(f"Processing short {i+1}/{len(recommendation.shorts)}")
 
-            # 1) Cut the raw short from the source video
             video_path = video_cutter.create_short_video(
                 input_video=settings.video_path,
                 short=short,
@@ -46,12 +47,11 @@ def process_shorts_with_progress(shorts, settings, videos_output_dir):
                 ),
             )
 
-            # 2) Apply video effects
             final_path = video_effect_service.apply_effects(
                 short,
                 settings,
                 video_path,
-                VideoEffectsStrategy.BASIC,
+                settings.video_effect_strategy,
                 videos_output_dir,
             )
             pbar.set_postfix(
@@ -60,14 +60,9 @@ def process_shorts_with_progress(shorts, settings, videos_output_dir):
                     short.title[:20] + "..." if len(short.title) > 20 else short.title
                 ),
             )
+            video_path.unlink(missing_ok=True)
+            final_video_path = final_path.rename(video_path)
 
-            # 3) Replace the original video with the enhanced version
-            video_path.unlink(missing_ok=True)  # Remove original file
-            final_video_path = final_path.rename(
-                video_path
-            )  # Rename enhanced file to original name
-
-            # Update progress
             pbar.update(1)
             pbar.set_postfix(
                 step="Complete",
@@ -75,10 +70,6 @@ def process_shorts_with_progress(shorts, settings, videos_output_dir):
                     short.title[:20] + "..." if len(short.title) > 20 else short.title
                 ),
             )
-
-            log.info(f"Enhanced short video {i+1}: {final_video_path}")
-
-    log.info("All shorts processing completed!")
 
 
 def main():
@@ -101,11 +92,10 @@ def main():
         audio_file, settings.data_dir / "speech.json", settings=settings
     )
 
-    shorts = shorts_generator.generate_youtube_shorts_recommendations(speech, settings)
+    shorts = shorts_generator.generate_youtube_shorts_recommendations(
+        speech, settings, settings.data_dir / "shorts.json"
+    )
 
-    storage.save(settings.data_dir / "shorts.json", shorts.model_dump_json(indent=2))
-
-    # Process all shorts with progress tracking
     process_shorts_with_progress(shorts, settings, settings.data_dir)
 
     log.info("Shorts creation completed!")

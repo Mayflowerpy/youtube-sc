@@ -1,5 +1,7 @@
 import logging
+from pathlib import Path
 from openai import OpenAI
+from shorts_creator.pipeline import storage
 from shorts_creator.domain.models import Speech, YouTubeShortsRecommendation
 from shorts_creator.settings.settings import AppSettings
 
@@ -175,9 +177,14 @@ def _add_timestamps_to_shorts(
 
 
 def generate_youtube_shorts_recommendations(
-    speech: Speech, settings: AppSettings
+    speech: Speech,
+    settings: AppSettings,
+    output_file: Path,
 ) -> YouTubeShortsRecommendation:
-    """Generate YouTube shorts recommendations from speech transcript."""
+    if output_file.exists() and not settings.refresh:
+        return YouTubeShortsRecommendation.model_validate_json(
+            storage.read(output_file)
+        )
     try:
         segments_text, total_segments = _format_segments_for_analysis(speech)
         prompt = _create_analysis_prompt(
@@ -188,6 +195,7 @@ def generate_youtube_shorts_recommendations(
         )
         analysis = _call_openai_api(prompt, settings)
         _add_timestamps_to_shorts(analysis, speech)
+        storage.save(output_file, analysis.model_dump_json(indent=2))
         return analysis
     except Exception as e:
         log.error(f"Error analyzing transcript: {e}")
