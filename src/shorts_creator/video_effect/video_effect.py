@@ -273,6 +273,7 @@ class CaptionsEffect(VideoEffect):
         highlight_color: tuple[int, int, int] = (255, 255, 0),
         dim_color: tuple[int, int, int] = (255, 255, 255),
         max_words_per_line=10,
+        debug: bool = False,
     ):
         self.youtube_short = youtube_short
         self.font_size = font_size
@@ -289,6 +290,7 @@ class CaptionsEffect(VideoEffect):
         self.font_name = font_name
         self.output_path = output_dir / f"short_{short_index}_captions.ass"
         self.max_words_per_line = max_words_per_line
+        self.debug = debug
 
     def _create_word_highlight(self, words: List[str], highlight_idx: int) -> str:
         if highlight_idx >= len(words):
@@ -395,4 +397,6 @@ class CaptionsEffect(VideoEffect):
         v = video_stream.video
         a = video_stream.audio
         v = v.filter("subtitles", str(self.output_path))
+        if not self.debug:
+            self.output_path.unlink(missing_ok=True)
         return [v, a]

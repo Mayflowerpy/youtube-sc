@@ -22,6 +22,7 @@ class VideoEffectsStrategy(Enum):
         speed_factor: float,
         data_dir: Path,
         short_index: int,
+        debug: bool = False,
     ) -> Sequence[VideoEffect]:
         match self:
             case VideoEffectsStrategy.BASIC:
@@ -33,6 +34,7 @@ class VideoEffectsStrategy(Enum):
                         youtube_short=short,
                         output_dir=data_dir,
                         short_index=short_index,
+                        debug=debug,
                     ),
                     BlurFilterStartVideoEffect(blur_strength=20, duration=1.0),
                     IncreaseVideoSpeedEffect(speed_factor=speed_factor, fps=30),

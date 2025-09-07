@@ -47,7 +47,6 @@ def process_shorts_with_progress(
                 ),
             )
 
-
             final_path = video_effect_service.apply_effects(
                 short,
                 settings,
@@ -103,6 +102,8 @@ def main():
 
     process_shorts_with_progress(shorts, settings, settings.data_dir)
 
+    if not settings.debug:
+        audio_file.unlink(missing_ok=True)
     log.info("Shorts creation completed!")
 
 
