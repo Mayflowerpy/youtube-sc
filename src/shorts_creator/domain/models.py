@@ -32,16 +32,6 @@ class YouTubeShort(BaseModel):
     end_segment_index: int = Field(
         description="Index of the ending segment (0-based, inclusive)"
     )
-    start_time: float = Field(
-        description="Start time in seconds from the beginning of the audio"
-    )
-    end_time: float = Field(
-        description="End time in seconds from the beginning of the audio"
-    )
-    full_transcript: str = Field(description="Complete transcript text for this short")
-    reasoning: str = Field(
-        description="Why this segment would make a good YouTube short"
-    )
     description: str = Field(
         min_length=300,
         description="Detailed description for the short video (can include hashtags)",
@@ -56,8 +46,23 @@ class YouTubeShort(BaseModel):
     )
 
 
-class YouTubeShortsRecommendation(BaseModel):
+class YouTubeShortWithSpeech(YouTubeShort):
+    speech: list[SpeechSegment] = Field(
+        default=[],
+        description="Precise speech segments with timestamps for this short",
+    )
+
+
+class YouTubeShortsRecommendationResponse(BaseModel):
     shorts: list[YouTubeShort] = Field(
+        description="List of identified YouTube shorts segments"
+    )
+    total_shorts_found: int = Field(description="Total number of shorts identified")
+    analysis_summary: str = Field(description="Overall summary of the analysis")
+
+
+class YouTubeShortsRecommendation(BaseModel):
+    shorts: list[YouTubeShortWithSpeech] = Field(
         description="List of identified YouTube shorts segments"
     )
     total_shorts_found: int = Field(description="Total number of shorts identified")

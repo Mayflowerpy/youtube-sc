@@ -250,3 +250,57 @@ class AudioNormalizationEffect(VideoEffect):
         )
 
         return [v, a]
+
+
+class CaptionsEffect(VideoEffect):
+    def __init__(
+        self,
+        captions: str,
+        font_size: int = 48,
+        font_color: str = "white",
+        font_name: str = "roboto-bold",
+        target_w: int = 1080,
+        target_h: int = 1920,
+    ):
+        self.captions = captions
+        self.font_size = font_size
+        self.font_color = font_color
+        self.font_path = str(get_font_path(font_name))
+        self.target_w = target_w
+        self.target_h = target_h
+
+    def apply(self, video_stream: Stream) -> list[Stream]:
+        v = video_stream.video
+        a = video_stream.audio
+
+        v = v.filter(
+            "drawtext",
+            text=self.captions,
+            fontfile=self.font_path,
+            fontsize=self.font_size,
+            fontcolor="black",
+            x="(w-text_w)/2+2",
+            y=f"{self.target_h - 300}+2",
+            alpha="0.8",
+            box=1,
+            boxcolor="black@0.5",
+            boxborderw=10,
+        )
+
+        # Then add main text with border
+        v = v.filter(
+            "drawtext",
+            text=self.captions,
+            fontfile=self.font_path,
+            fontsize=self.font_size,
+            fontcolor=self.font_color,
+            x="(w-text_w)/2",
+            y=f"{self.target_h - 300}",
+            borderw=3,
+            bordercolor="black",
+            box=1,
+            boxcolor="black@0.5",
+            boxborderw=10,
+        )
+
+        return [v, a]

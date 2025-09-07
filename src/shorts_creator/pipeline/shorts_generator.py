@@ -2,7 +2,12 @@ import logging
 from pathlib import Path
 from openai import OpenAI
 from shorts_creator.pipeline import storage
-from shorts_creator.domain.models import Speech, YouTubeShortsRecommendation
+from shorts_creator.domain.models import (
+    Speech,
+    YouTubeShortsRecommendation,
+    YouTubeShortWithSpeech,
+    YouTubeShortsRecommendationResponse,
+)
 from shorts_creator.settings.settings import AppSettings
 
 log = logging.getLogger(__name__)
@@ -116,8 +121,9 @@ def _create_analysis_prompt(
     """
 
 
-def _call_openai_api(prompt: str, settings: AppSettings) -> YouTubeShortsRecommendation:
-    """Make API call to OpenAI for shorts analysis."""
+def _call_openai_api(
+    prompt: str, settings: AppSettings
+) -> YouTubeShortsRecommendationResponse:
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
 
     response = client.beta.chat.completions.parse(
@@ -129,7 +135,7 @@ def _call_openai_api(prompt: str, settings: AppSettings) -> YouTubeShortsRecomme
             },
             {"role": "user", "content": prompt},
         ],
-        response_format=YouTubeShortsRecommendation,
+        response_format=YouTubeShortsRecommendationResponse,
         temperature=0.3,
     )
 
@@ -137,21 +143,16 @@ def _call_openai_api(prompt: str, settings: AppSettings) -> YouTubeShortsRecomme
 
     if analysis is None:
         log.error("Failed to parse response from OpenAI")
-        return YouTubeShortsRecommendation(
-            shorts=[],
-            total_shorts_found=0,
-            analysis_summary="Failed to parse response from OpenAI",
-        )
+        raise ValueError("Response from OpenAI is None")
 
     return analysis
 
 
 def _add_timestamps_to_shorts(
-    analysis: YouTubeShortsRecommendation, speech: Speech
-) -> None:
-    """Add precise timestamps to each short using segment indices."""
+    analysis: YouTubeShortsRecommendationResponse, speech: Speech
+) -> YouTubeShortsRecommendation:
+    shorts = []
     for short in analysis.shorts:
-        # Validate segment indices
         if (
             short.start_segment_index < 0
             or short.end_segment_index >= len(speech.segments)
@@ -161,19 +162,22 @@ def _add_timestamps_to_shorts(
                 f"Invalid segment range: {short.start_segment_index}-{short.end_segment_index}"
             )
             continue
+        
+        short_with_speech = YouTubeShortWithSpeech.model_validate(
+            {
+                **short.model_dump(),
+                "speech": speech.segments[
+                    short.start_segment_index : short.end_segment_index + 1
+                ],
+            }
+        )
+        shorts.append(short_with_speech)
 
-        # Get timestamps from segment indices
-        start_segment = speech.segments[short.start_segment_index]
-        end_segment = speech.segments[short.end_segment_index]
-
-        short.start_time = start_segment.start_time
-        short.end_time = end_segment.end_time
-
-        # Build full transcript for this range
-        segment_texts = []
-        for i in range(short.start_segment_index, short.end_segment_index + 1):
-            segment_texts.append(speech.segments[i].text)
-        short.full_transcript = " ".join(segment_texts).strip()
+    return YouTubeShortsRecommendation(
+        shorts=shorts,
+        total_shorts_found=analysis.total_shorts_found,
+        analysis_summary=analysis.analysis_summary,
+    )
 
 
 def generate_youtube_shorts_recommendations(
@@ -185,22 +189,14 @@ def generate_youtube_shorts_recommendations(
         return YouTubeShortsRecommendation.model_validate_json(
             storage.read(output_file)
         )
-    try:
-        segments_text, total_segments = _format_segments_for_analysis(speech)
-        prompt = _create_analysis_prompt(
-            segments_text,
-            total_segments,
-            settings.shorts_number,
-            settings.short_duration_seconds * settings.speed_factor,
-        )
-        analysis = _call_openai_api(prompt, settings)
-        _add_timestamps_to_shorts(analysis, speech)
-        storage.save(output_file, analysis.model_dump_json(indent=2))
-        return analysis
-    except Exception as e:
-        log.error(f"Error analyzing transcript: {e}")
-        return YouTubeShortsRecommendation(
-            shorts=[],
-            total_shorts_found=0,
-            analysis_summary=f"Error occurred during analysis: {str(e)}",
-        )
+    segments_text, total_segments = _format_segments_for_analysis(speech)
+    prompt = _create_analysis_prompt(
+        segments_text,
+        total_segments,
+        settings.shorts_number,
+        settings.short_duration_seconds * settings.speed_factor,
+    )
+    analysis = _call_openai_api(prompt, settings)
+    res = _add_timestamps_to_shorts(analysis, speech)
+    storage.save(output_file, res.model_dump_json(indent=2))
+    return res
