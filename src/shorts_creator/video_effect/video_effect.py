@@ -263,37 +263,21 @@ class CaptionsEffect(VideoEffect):
         youtube_short: YouTubeShortWithSpeech,
         output_dir: Path,
         short_index: int,
-        font_name: str = "Arial",
-        font_size: int = 42,
+        font_name: str = "Roboto-Bold",
+        font_size: int = 56,
         font_color: tuple[int, int, int] = (255, 255, 255),
         outline_color: tuple[int, int, int] = (0, 0, 0),
-        outline_width: int = 3,
+        outline_width: int = 4,
         margin_bottom: int = 120,
-        max_chars_per_line: int = 30,
+        max_chars_per_line: int = 28,
         alignment: Alignment = Alignment.BOTTOM_CENTER,
         bold: bool = True,
         target_w: int = 1080,
         target_h: int = 1920,
+        enable_word_highlighting: bool = True,
+        highlight_color: tuple[int, int, int] = (0, 255, 255),
+        dim_color: tuple[int, int, int] = (255, 255, 255),
     ):
-        """
-        Generate and apply ASS subtitle captions to video with configurable styling.
-        
-        Args:
-            youtube_short: Short with speech segments
-            output_dir: Directory to save ASS file
-            short_index: Index of the short (for filename)
-            font_name: Font family name (default: Arial)
-            font_size: Font size in pixels (default: 42)
-            font_color: RGB color tuple for text (default: white)
-            outline_color: RGB color tuple for outline (default: black)
-            outline_width: Outline width in pixels (default: 3)
-            margin_bottom: Bottom margin in pixels (default: 120)
-            max_chars_per_line: Maximum characters per line (default: 30)
-            alignment: Text alignment (default: BOTTOM_CENTER)
-            bold: Whether to use bold text (default: True)
-            target_w: Target video width (default: 1080)
-            target_h: Target video height (default: 1920)
-        """
         self.youtube_short = youtube_short
         self.font_name = font_name
         self.font_size = font_size
@@ -306,6 +290,9 @@ class CaptionsEffect(VideoEffect):
         self.bold = bold
         self.target_w = target_w
         self.target_h = target_h
+        self.enable_word_highlighting = enable_word_highlighting
+        self.highlight_color = highlight_color
+        self.dim_color = dim_color
         self.log = logging.getLogger(__name__)
         
         # Create ASS file path in the output directory
@@ -314,16 +301,139 @@ class CaptionsEffect(VideoEffect):
         # Generate the ASS file
         self._generate_ass_file()
 
+    def _capitalize_sentence(self, text: str) -> str:
+        """
+        Ensure the first word of the text starts with a capital letter for proper sentences.
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Text with first letter capitalized
+        """
+        if not text:
+            return text
+            
+        # Find the first alphabetic character and capitalize it
+        text = text.strip()
+        if text:
+            # Handle cases where text might start with quotes or other punctuation
+            for i, char in enumerate(text):
+                if char.isalpha():
+                    return text[:i] + char.upper() + text[i+1:]
+        
+        return text
+
+    def _calculate_word_timings(self, text: str, start_time: float, end_time: float) -> List[tuple[str, float, float]]:
+        """
+        Calculate timing for each word in a text segment based on actual speech duration.
+        
+        Args:
+            text: The text to split into words
+            start_time: Segment start time in seconds
+            end_time: Segment end time in seconds
+            
+        Returns:
+            List of (word, word_start_time, word_end_time) tuples
+        """
+        words = text.split()
+        if not words:
+            return []
+        
+        # Calculate total duration available
+        segment_duration = end_time - start_time
+        
+        # Handle very short segments - skip word highlighting
+        if segment_duration < 0.3:
+            return [(text, start_time, end_time)]
+        
+        # Calculate weight for each word (longer words take more time)
+        word_weights = []
+        for word in words:
+            # Base weight + character-based weight + punctuation consideration
+            base_weight = 1.0
+            char_weight = len(word.strip('.,!?;:')) * 0.08
+            punct_weight = 0.1 if any(c in word for c in '.,!?;:') else 0
+            word_weights.append(base_weight + char_weight + punct_weight)
+        
+        total_weight = sum(word_weights)
+        
+        # Distribute timing proportionally
+        word_timings = []
+        current_time = start_time
+        
+        for i, (word, weight) in enumerate(zip(words, word_weights)):
+            # Calculate word duration based on weight
+            word_duration = (weight / total_weight) * segment_duration
+            word_end_time = current_time + word_duration
+            
+            # Ensure last word ends exactly at segment end
+            if i == len(words) - 1:
+                word_end_time = end_time
+            
+            word_timings.append((word, current_time, word_end_time))
+            current_time = word_end_time
+        
+        return word_timings
+
+    def _create_highlighted_text(self, words: List[str], highlight_index: int) -> str:
+        """
+        Create ASS-formatted text with one word highlighted and others dimmed.
+        
+        Args:
+            words: List of words in the text
+            highlight_index: Index of word to highlight (0-based)
+            
+        Returns:
+            ASS-formatted text with color tags
+        """
+        if not self.enable_word_highlighting or highlight_index < 0 or highlight_index >= len(words):
+            return " ".join(words)
+        
+        # Convert RGB to BGR hex format for ASS (ASS uses BGR, not RGB)
+        highlight_hex = f"{self.highlight_color[2]:02X}{self.highlight_color[1]:02X}{self.highlight_color[0]:02X}"
+        dim_hex = f"{self.dim_color[2]:02X}{self.dim_color[1]:02X}{self.dim_color[0]:02X}"
+        
+        formatted_words = []
+        for i, word in enumerate(words):
+            if i == highlight_index:
+                # Highlighted word - bright white
+                formatted_words.append(f"{{\\c&H{highlight_hex}&}}{word}{{\\c&H{dim_hex}&}}")
+            else:
+                # Dimmed word - gray
+                formatted_words.append(word)
+        
+        # Apply dimmed color to the entire text, then override highlighted word
+        full_text = " ".join(words)
+        if highlight_index < len(words):
+            # Replace the specific word with highlighted version
+            words_before = words[:highlight_index]
+            highlighted_word = words[highlight_index]
+            words_after = words[highlight_index + 1:]
+            
+            text_before = " ".join(words_before) + (" " if words_before else "")
+            text_after = (" " if words_after else "") + " ".join(words_after)
+            
+            return f"{{\\c&H{dim_hex}&}}{text_before}{{\\c&H{highlight_hex}&}}{highlighted_word}{{\\c&H{dim_hex}&}}{text_after}"
+        
+        return f"{{\\c&H{dim_hex}&}}{full_text}"
+
     def _wrap_text_for_mobile(self, text: str) -> str:
         """
         Wrap text intelligently for mobile YouTube Shorts captions.
+        Preserves ASS color tags and handles them properly.
         
         Args:
-            text: Text to wrap
+            text: Text to wrap (may contain ASS color tags)
         
         Returns:
             Formatted text with \\N line breaks for ASS format (max 2 lines)
         """
+        # If text contains ASS color tags, handle it carefully
+        if '{\\c&H' in text:
+            # For highlighted text, don't wrap to avoid breaking color tags
+            return text
+        
         # Clean up text - remove extra spaces and normalize
         text = re.sub(r'\s+', ' ', text.strip())
         
@@ -406,32 +516,59 @@ class CaptionsEffect(VideoEffect):
         # Add configurable style
         subs.styles["CaptionsStyle"] = self._create_style()
         
-        # Calculate timing offset (short's actual start time)
-        offset_ms = int(self.youtube_short.start_time * 1000)  # Convert to milliseconds
-        
         # Generate subtitle events for each speech segment
         for segment in self.youtube_short.speech:
             if segment.text.strip():  # Skip empty segments
-                # Convert to milliseconds and adjust for short offset
-                start_ms = int(segment.start_time * 1000) - offset_ms
-                end_ms = int(segment.end_time * 1000) - offset_ms
+                # Convert to seconds and adjust for short offset
+                start_time = segment.start_time - self.youtube_short.start_time
+                end_time = segment.end_time - self.youtube_short.start_time
                 
                 # Ensure positive timing
-                start_ms = max(0, start_ms)
-                end_ms = max(start_ms + 100, end_ms)  # Minimum 100ms duration
+                start_time = max(0.0, start_time)
+                end_time = max(start_time + 0.1, end_time)  # Minimum 100ms duration
+                
+                # Capitalize first letter for proper sentence structure
+                capitalized_text = self._capitalize_sentence(segment.text)
                 
                 # Wrap text for mobile viewing
-                formatted_text = self._wrap_text_for_mobile(segment.text)
+                formatted_text = self._wrap_text_for_mobile(capitalized_text)
                 
-                # Create subtitle event
-                event = SSAEvent(
-                    start=start_ms,
-                    end=end_ms,
-                    text=formatted_text,
-                    style="CaptionsStyle"
-                )
-                
-                subs.append(event)
+                if self.enable_word_highlighting:
+                    # Generate word-by-word highlighted events
+                    word_timings = self._calculate_word_timings(capitalized_text, start_time, end_time)
+                    words = capitalized_text.split()
+                    
+                    # Create overlapping events for each word highlight
+                    for word_idx, (_, word_start, word_end) in enumerate(word_timings):
+                        # Create highlighted text for this word
+                        highlighted_text = self._create_highlighted_text(words, word_idx)
+                        wrapped_text = self._wrap_text_for_mobile(highlighted_text)
+                        
+                        # Convert to milliseconds
+                        start_ms = int(word_start * 1000)
+                        end_ms = int(word_end * 1000)
+                        
+                        event = SSAEvent(
+                            start=start_ms,
+                            end=end_ms,
+                            text=wrapped_text,
+                            style="CaptionsStyle"
+                        )
+                        
+                        subs.append(event)
+                else:
+                    # Standard non-highlighted caption
+                    start_ms = int(start_time * 1000)
+                    end_ms = int(end_time * 1000)
+                    
+                    event = SSAEvent(
+                        start=start_ms,
+                        end=end_ms,
+                        text=formatted_text,
+                        style="CaptionsStyle"
+                    )
+                    
+                    subs.append(event)
         
         # Save ASS file
         subs.save(str(self.output_path), encoding="utf-8")
