@@ -1,7 +1,7 @@
 import logging
 import ffmpeg
 from pathlib import Path
-from shorts_creator.domain.models import YouTubeShort, Speech
+from shorts_creator.domain.models import YouTubeShortWithSpeech, Speech
 
 log = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ def cut_video_segment_with_effects(
 
 def create_short_video(
     input_video: Path,
-    short: YouTubeShort,
+    short: YouTubeShortWithSpeech,
     output_dir: Path,
     short_index: int,
     debug: bool,

@@ -87,6 +87,7 @@ The video transcript will be provided wrapped in <VIDEO_TRANSCRIPT></VIDEO_TRANS
 Use timing information to estimate durations and ensure segments fit within the {max_duration_seconds}-second limit.
 """
 
+
 def _create_user_prompt(segments_text: str, total_segments: int) -> str:
     """Create the user prompt with the video transcript."""
     return f"""
@@ -145,6 +146,8 @@ def _add_timestamps_to_shorts(
                 "speech": speech.segments[
                     short.start_segment_index : short.end_segment_index + 1
                 ],
+                "start_time": speech.segments[short.start_segment_index].start_time,
+                "end_time": speech.segments[short.end_segment_index].end_time,
             }
         )
         shorts.append(short_with_speech)

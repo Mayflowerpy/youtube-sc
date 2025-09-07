@@ -51,7 +51,12 @@ class YouTubeShortWithSpeech(YouTubeShort):
         default=[],
         description="Precise speech segments with timestamps for this short",
     )
-
+    start_time: float = Field(
+        description="Start time in seconds from the beginning of the audio"
+    )
+    end_time: float = Field(
+        description="End time in seconds from the beginning of the audio"
+    )
 
 class YouTubeShortsRecommendation(BaseModel):
     shorts: list[YouTubeShortWithSpeech] = Field(
