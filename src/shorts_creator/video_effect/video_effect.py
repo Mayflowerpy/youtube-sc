@@ -260,11 +260,11 @@ class CaptionsEffect(VideoEffect):
         youtube_short: YouTubeShortWithSpeech,
         output_dir: Path,
         short_index: int,
-        font_name: str = "comic-neue-bold",
-        font_size: int = 84,
+        font_name: str = "Comic Neue Bold",
+        font_size: int = 96,
         font_color: tuple[int, int, int] = (255, 255, 255),
         outline_color: tuple[int, int, int] = (0, 0, 0),
-        outline_width: int = 5,
+        outline_width: float = 5,
         margin_bottom: int = 150,
         max_chars_per_line: int = 20,
         alignment: Alignment = Alignment.BOTTOM_CENTER,
@@ -274,7 +274,6 @@ class CaptionsEffect(VideoEffect):
         dim_color: tuple[int, int, int] = (255, 255, 255),
     ):
         self.youtube_short = youtube_short
-        self.font_name = font_name
         self.font_size = font_size
         self.font_color = font_color
         self.outline_color = outline_color
@@ -286,7 +285,7 @@ class CaptionsEffect(VideoEffect):
         self.target_h = target_h
         self.highlight_color = highlight_color
         self.dim_color = dim_color
-        self.font_path = str(get_font_path(font_name))
+        self.font_name = font_name
         self.output_path = output_dir / f"short_{short_index}_captions.ass"
 
     def _create_word_highlight(self, words: List[str], highlight_idx: int) -> str:
@@ -325,7 +324,7 @@ class CaptionsEffect(VideoEffect):
 
     def _create_style(self) -> SSAStyle:
         return SSAStyle(
-            fontname=self.font_path,
+            fontname=self.font_name,
             fontsize=self.font_size,
             primarycolor=Color(
                 r=self.font_color[0], g=self.font_color[1], b=self.font_color[2], a=0
