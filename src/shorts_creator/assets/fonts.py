@@ -11,6 +11,7 @@ FONTS_DIR = Path(__file__).parent / "fonts"
 # Font paths
 ROBOTO_REGULAR = FONTS_DIR / "Roboto-Regular.ttf"
 ROBOTO_BOLD = FONTS_DIR / "Roboto-Bold.ttf"
+COMIC_NEUE_BOLD = FONTS_DIR / "ComicNeue-Bold.ttf"
 
 
 def get_font_path(font_name: str = "roboto-bold") -> Path:
@@ -18,7 +19,7 @@ def get_font_path(font_name: str = "roboto-bold") -> Path:
     Get the path to a bundled font file.
     
     Args:
-        font_name: The name of the font ("roboto-bold" or "roboto-regular")
+        font_name: The name of the font ("roboto-bold", "roboto-regular", or "comic-neue-bold")
         
     Returns:
         Path to the font file
@@ -29,6 +30,7 @@ def get_font_path(font_name: str = "roboto-bold") -> Path:
     font_map = {
         "roboto-bold": ROBOTO_BOLD,
         "roboto-regular": ROBOTO_REGULAR,
+        "comic-neue-bold": COMIC_NEUE_BOLD,
     }
     
     font_path = font_map.get(font_name.lower())
