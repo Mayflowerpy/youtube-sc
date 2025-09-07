@@ -325,7 +325,7 @@ class CaptionsEffect(VideoEffect):
 
     def _create_style(self) -> SSAStyle:
         return SSAStyle(
-            fontname="Comic Neue",
+            fontname=self.font_path,
             fontsize=self.font_size,
             primarycolor=Color(
                 r=self.font_color[0], g=self.font_color[1], b=self.font_color[2], a=0
