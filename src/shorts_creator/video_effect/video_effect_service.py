@@ -3,7 +3,7 @@ from shorts_creator.video_effect.video_effect import VideoEffect
 from shorts_creator.video_effect.strategies import VideoEffectsStrategy
 from shorts_creator.settings.settings import AppSettings
 from logging import getLogger
-from shorts_creator.domain.models import YouTubeShort
+from shorts_creator.domain.models import YouTubeShortWithSpeech
 import ffmpeg
 
 log = getLogger(__name__)
@@ -51,17 +51,21 @@ def _delete_old_files(old_video_files: list[Path]):
 
 
 def apply_effects(
-    short: YouTubeShort,
+    short: YouTubeShortWithSpeech,
     settings: AppSettings,
     video_path: Path,
     strategy: VideoEffectsStrategy,
     output_dir: Path,
+    short_index: int = 0,
 ) -> Path:
     video_name, video_ext = video_path.name.split(".")
 
     curr_video_path = video_path
 
-    effects = strategy.create_effects(short, settings.speed_factor)
+    # Construct captions path based on short index
+    captions_path = output_dir / f"short_{short_index}_captions.ass"
+
+    effects = strategy.create_effects(short, settings.speed_factor, captions_path)
 
     output_file = None
     old_video_files = []

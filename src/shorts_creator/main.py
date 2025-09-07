@@ -47,12 +47,14 @@ def process_shorts_with_progress(
                 ),
             )
 
+
             final_path = video_effect_service.apply_effects(
                 short,
                 settings,
                 video_path,
                 settings.video_effect_strategy,
                 videos_output_dir,
+                short_index=i,
             )
             pbar.set_postfix(
                 step="Effects applied",

@@ -1,8 +1,14 @@
 from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import Optional, Literal
+from typing import Optional, Literal, List
+import logging
+import re
+import tempfile
 from ffmpeg.nodes import Stream
 from shorts_creator.assets.fonts import get_font_path
+import pysubs2
+from pysubs2 import SSAFile, SSAEvent, SSAStyle, Alignment, Color
+from shorts_creator.domain.models import YouTubeShortWithSpeech
 
 
 class VideoEffect(ABC):
@@ -255,52 +261,201 @@ class AudioNormalizationEffect(VideoEffect):
 class CaptionsEffect(VideoEffect):
     def __init__(
         self,
-        captions: str,
-        font_size: int = 48,
-        font_color: str = "white",
-        font_name: str = "roboto-bold",
+        youtube_short: YouTubeShortWithSpeech,
+        font_name: str = "Arial",
+        font_size: int = 42,
+        font_color: tuple[int, int, int] = (255, 255, 255),
+        outline_color: tuple[int, int, int] = (0, 0, 0),
+        outline_width: int = 3,
+        margin_bottom: int = 120,
+        max_chars_per_line: int = 30,
+        alignment: Alignment = Alignment.BOTTOM_CENTER,
+        bold: bool = True,
         target_w: int = 1080,
         target_h: int = 1920,
     ):
-        self.captions = captions
+        """
+        Generate and apply ASS subtitle captions to video with configurable styling.
+        
+        Args:
+            youtube_short: Short with speech segments
+            font_name: Font family name (default: Arial)
+            font_size: Font size in pixels (default: 42)
+            font_color: RGB color tuple for text (default: white)
+            outline_color: RGB color tuple for outline (default: black)
+            outline_width: Outline width in pixels (default: 3)
+            margin_bottom: Bottom margin in pixels (default: 120)
+            max_chars_per_line: Maximum characters per line (default: 30)
+            alignment: Text alignment (default: BOTTOM_CENTER)
+            bold: Whether to use bold text (default: True)
+            target_w: Target video width (default: 1080)
+            target_h: Target video height (default: 1920)
+        """
+        self.youtube_short = youtube_short
+        self.font_name = font_name
         self.font_size = font_size
         self.font_color = font_color
-        self.font_path = str(get_font_path(font_name))
+        self.outline_color = outline_color
+        self.outline_width = outline_width
+        self.margin_bottom = margin_bottom
+        self.max_chars_per_line = max_chars_per_line
+        self.alignment = alignment
+        self.bold = bold
         self.target_w = target_w
         self.target_h = target_h
+        self.log = logging.getLogger(__name__)
+        
+        # Create temporary ASS file that OS can clean up
+        self.temp_file = tempfile.NamedTemporaryFile(
+            mode='w+', 
+            suffix='.ass', 
+            prefix='captions_', 
+            delete=False,
+            encoding='utf-8'
+        )
+        self.output_path = Path(self.temp_file.name)
+        
+        # Generate the ASS file
+        self._generate_ass_file()
+
+    def _wrap_text_for_mobile(self, text: str) -> str:
+        """
+        Wrap text intelligently for mobile YouTube Shorts captions.
+        
+        Args:
+            text: Text to wrap
+        
+        Returns:
+            Formatted text with \\N line breaks for ASS format (max 2 lines)
+        """
+        # Clean up text - remove extra spaces and normalize
+        text = re.sub(r'\s+', ' ', text.strip())
+        
+        # If text fits in one line, return as is
+        if len(text) <= self.max_chars_per_line:
+            return text
+        
+        # Try to split at natural word boundaries
+        words = text.split()
+        lines = []
+        current_line = ""
+        
+        for word in words:
+            # Check if adding this word would exceed line limit
+            test_line = f"{current_line} {word}".strip()
+            
+            if len(test_line) <= self.max_chars_per_line:
+                current_line = test_line
+            else:
+                # If current line is empty and single word is too long, force break
+                if not current_line and len(word) > self.max_chars_per_line:
+                    lines.append(word[:self.max_chars_per_line])
+                    current_line = word[self.max_chars_per_line:]
+                else:
+                    # Save current line and start new one
+                    if current_line:
+                        lines.append(current_line)
+                    current_line = word
+                    
+                    # Limit to 2 lines maximum
+                    if len(lines) >= 1:
+                        break
+        
+        # Add remaining text to last line (truncate if necessary)
+        if current_line:
+            if len(lines) >= 1:
+                # We're at the limit - combine remaining text with truncation if needed
+                remaining_space = self.max_chars_per_line
+                if len(current_line) <= remaining_space:
+                    lines.append(current_line)
+                else:
+                    # Truncate and add ellipsis if needed
+                    lines.append(current_line[:remaining_space-1] + "…")
+            else:
+                lines.append(current_line)
+        
+        # Ensure we return at most 2 lines and join with ASS line break
+        return "\\N".join(lines[:2])
+
+    def _create_style(self) -> SSAStyle:
+        """Create ASS style with configurable parameters."""
+        return SSAStyle(
+            fontname=self.font_name,
+            fontsize=self.font_size,
+            primarycolor=Color(r=self.font_color[0], g=self.font_color[1], b=self.font_color[2], a=0),
+            outlinecolor=Color(r=self.outline_color[0], g=self.outline_color[1], b=self.outline_color[2], a=0),
+            outline=self.outline_width,
+            shadow=0,  # No shadow (outline provides contrast)
+            alignment=self.alignment,
+            marginv=self.margin_bottom,
+            bold=self.bold,
+            encoding=1  # UTF-8 encoding
+        )
+
+    def _generate_ass_file(self) -> str:
+        """
+        Generate ASS subtitle file for the YouTube Short.
+        
+        Returns:
+            ASS file content as string
+        """
+        self.log.info(f"Generating ASS captions for short: {self.youtube_short.title}")
+        
+        # Create new SSA file with proper resolution for YouTube Shorts (9:16)
+        subs = SSAFile()
+        subs.info["Title"] = self.youtube_short.title
+        subs.info["PlayResX"] = str(self.target_w)
+        subs.info["PlayResY"] = str(self.target_h)
+        
+        # Add configurable style
+        subs.styles["CaptionsStyle"] = self._create_style()
+        
+        # Calculate timing offset (short's actual start time)
+        offset_ms = int(self.youtube_short.start_time * 1000)  # Convert to milliseconds
+        
+        # Generate subtitle events for each speech segment
+        for segment in self.youtube_short.speech:
+            if segment.text.strip():  # Skip empty segments
+                # Convert to milliseconds and adjust for short offset
+                start_ms = int(segment.start_time * 1000) - offset_ms
+                end_ms = int(segment.end_time * 1000) - offset_ms
+                
+                # Ensure positive timing
+                start_ms = max(0, start_ms)
+                end_ms = max(start_ms + 100, end_ms)  # Minimum 100ms duration
+                
+                # Wrap text for mobile viewing
+                formatted_text = self._wrap_text_for_mobile(segment.text)
+                
+                # Create subtitle event
+                event = SSAEvent(
+                    start=start_ms,
+                    end=end_ms,
+                    text=formatted_text,
+                    style="CaptionsStyle"
+                )
+                
+                subs.append(event)
+        
+        # Save ASS file
+        subs.save(str(self.output_path), encoding="utf-8")
+        
+        # Also return the content as string for debugging/testing
+        ass_content = ""
+        with open(self.output_path, 'r', encoding='utf-8') as f:
+            ass_content = f.read()
+        
+        self.log.info(f"Generated ASS captions saved to: {self.output_path}")
+        self.log.info(f"Generated {len(subs)} subtitle events")
+        
+        return ass_content
 
     def apply(self, video_stream: Stream) -> list[Stream]:
         v = video_stream.video
         a = video_stream.audio
 
-        v = v.filter(
-            "drawtext",
-            text=self.captions,
-            fontfile=self.font_path,
-            fontsize=self.font_size,
-            fontcolor="black",
-            x="(w-text_w)/2+2",
-            y=f"{self.target_h - 300}+2",
-            alpha="0.8",
-            box=1,
-            boxcolor="black@0.5",
-            boxborderw=10,
-        )
-
-        # Then add main text with border
-        v = v.filter(
-            "drawtext",
-            text=self.captions,
-            fontfile=self.font_path,
-            fontsize=self.font_size,
-            fontcolor=self.font_color,
-            x="(w-text_w)/2",
-            y=f"{self.target_h - 300}",
-            borderw=3,
-            bordercolor="black",
-            box=1,
-            boxcolor="black@0.5",
-            boxborderw=10,
-        )
+        # Use subtitles filter to apply ASS captions
+        # This properly handles timing, positioning, styling, and text wrapping
+        v = v.filter("subtitles", str(self.output_path))
 
         return [v, a]

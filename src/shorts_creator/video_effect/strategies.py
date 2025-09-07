@@ -1,4 +1,6 @@
 from enum import Enum
+from pathlib import Path
+from typing import Optional, Sequence
 from shorts_creator.video_effect.video_effect import (
     VideoEffect,
     IncreaseVideoSpeedEffect,
@@ -6,9 +8,9 @@ from shorts_creator.video_effect.video_effect import (
     TextEffect,
     BlurFilterStartVideoEffect,
     AudioNormalizationEffect,
+    CaptionsEffect,
 )
-from shorts_creator.domain.models import YouTubeShort
-from typing import Sequence
+from shorts_creator.domain.models import YouTubeShortWithSpeech
 
 
 class VideoEffectsStrategy(Enum):
@@ -17,8 +19,9 @@ class VideoEffectsStrategy(Enum):
 
     def create_effects(
         self,
-        short: YouTubeShort,
+        short: YouTubeShortWithSpeech,
         speed_factor: float,
+        captions_path: Optional[Path] = None,
     ) -> Sequence[VideoEffect]:
         match self:
             case VideoEffectsStrategy.BASIC:
@@ -30,5 +33,7 @@ class VideoEffectsStrategy(Enum):
                     BlurFilterStartVideoEffect(blur_strength=20, duration=1.0),
                     IncreaseVideoSpeedEffect(speed_factor=speed_factor, fps=30),
                 ]
+            case VideoEffectsStrategy.CAPTIONS:
+                return [CaptionsEffect(youtube_short=short)]
             case _:
                 raise ValueError(f"Unknown strategy: {self}")
