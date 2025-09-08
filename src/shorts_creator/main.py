@@ -125,13 +125,17 @@ def main():
     # Initialize YouTube service if upload is enabled
     youtube_service = None
     if settings.youtube_upload:
-        if not settings.youtube_credentials_path:
+        if not settings.youtube_client_id or not settings.youtube_client_secret:
             log.error(
-                "❌ YouTube upload enabled but no credentials file provided. Use --youtube-credentials"
+                "❌ YouTube upload enabled but credentials missing. Set YOUTUBE_SHORTS_YOUTUBE_CLIENT_ID and YOUTUBE_SHORTS_YOUTUBE_CLIENT_SECRET environment variables"
             )
             return
 
-        youtube_service = YouTubeService(settings.youtube_credentials_path)
+        youtube_service = YouTubeService(
+            client_id=settings.youtube_client_id,
+            client_secret=settings.youtube_client_secret,
+            project_id=settings.youtube_project_id,
+        )
 
     process_shorts_with_progress(shorts, settings, settings.data_dir, youtube_service)
 

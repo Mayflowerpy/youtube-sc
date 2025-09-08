@@ -22,8 +22,10 @@ class AppSettings(BaseSettings):
     debug: bool
     # YouTube upload settings
     youtube_upload: bool = False
-    youtube_credentials_path: Path | None = None
     youtube_privacy: Literal["private", "public", "unlisted"] = "private"
+    youtube_client_id: str | None = None
+    youtube_client_secret: str | None = None
+    youtube_project_id: str | None = None
 
     class Config:
         env_file = ".env"
@@ -82,12 +84,6 @@ def parse_args() -> AppSettings:
         help="Upload generated shorts to YouTube",
     )
     parser.add_argument(
-        "--youtube-credentials",
-        type=Path,
-        default=None,
-        help="Path to YouTube OAuth2 credentials JSON file",
-    )
-    parser.add_argument(
         "--youtube-privacy",
         type=str,
         default="private",
@@ -104,6 +100,5 @@ def parse_args() -> AppSettings:
         video_effect_strategy=VideoEffectsStrategy[args.strategy.upper()],
         debug=args.debug,
         youtube_upload=args.upload,
-        youtube_credentials_path=args.youtube_credentials,
         youtube_privacy=args.youtube_privacy,
     )  # type: ignore
