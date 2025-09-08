@@ -66,28 +66,25 @@ def process_shorts_with_progress(
             )
             video_path.unlink(missing_ok=True)
             final_path.rename(video_path)
-            
+
             # Upload to YouTube if enabled
             if youtube_service:
                 pbar.set_postfix(
                     step="Uploading",
                     title=(
-                        short.title[:20] + "..." if len(short.title) > 20 else short.title
+                        short.title[:20] + "..."
+                        if len(short.title) > 20
+                        else short.title
                     ),
                 )
-                
-                video_id = youtube_service.upload_video(
+
+                youtube_service.upload_video(
                     video_path=video_path,
                     title=short.title,
                     description=short.description,
                     tags=short.tags,
                     privacy=settings.youtube_privacy,
                 )
-                
-                if video_id:
-                    log.info(f"✅ Short uploaded: https://youtu.be/{video_id}")
-                else:
-                    log.error("❌ Failed to upload short to YouTube")
 
             pbar.update(1)
             pbar.set_postfix(
@@ -129,13 +126,12 @@ def main():
     youtube_service = None
     if settings.youtube_upload:
         if not settings.youtube_credentials_path:
-            log.error("❌ YouTube upload enabled but no credentials file provided. Use --youtube-credentials")
+            log.error(
+                "❌ YouTube upload enabled but no credentials file provided. Use --youtube-credentials"
+            )
             return
-            
+
         youtube_service = YouTubeService(settings.youtube_credentials_path)
-        if not youtube_service.authenticate():
-            log.error("❌ Failed to authenticate with YouTube. Upload disabled.")
-            youtube_service = None
 
     process_shorts_with_progress(shorts, settings, settings.data_dir, youtube_service)
 
