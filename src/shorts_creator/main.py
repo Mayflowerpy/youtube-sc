@@ -99,6 +99,23 @@ def main():
     settings = parse_args()
     logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
 
+    youtube_service = None
+    if settings.youtube_upload:
+        if not settings.youtube_client_id or not settings.youtube_client_secret:
+            raise RuntimeError(
+                "YouTube client ID and secret must be provided for uploading."
+            )
+
+        youtube_service = YouTubeService(
+            client_id=settings.youtube_client_id,
+            client_secret=settings.youtube_client_secret,
+            project_id=settings.youtube_project_id,
+            data_dir=settings.data_dir,
+        )
+
+        if not youtube_service.check_quota_status():
+            raise RuntimeError("YouTube API quota exceeded or not available.")
+
     log.info(
         f"Starting shorts creation: refresh={settings.refresh}, video = {settings.video_path}"
     )
@@ -121,27 +138,6 @@ def main():
     shorts = shorts_generator.generate_youtube_shorts_recommendations(
         speech, settings, settings.data_dir / "shorts.json"
     )
-
-    # Initialize YouTube service if upload is enabled
-    youtube_service = None
-    if settings.youtube_upload:
-        if not settings.youtube_client_id or not settings.youtube_client_secret:
-            log.error(
-                "❌ YouTube upload enabled but credentials missing. Set YOUTUBE_SHORTS_YOUTUBE_CLIENT_ID and YOUTUBE_SHORTS_YOUTUBE_CLIENT_SECRET environment variables"
-            )
-            return
-
-        youtube_service = YouTubeService(
-            client_id=settings.youtube_client_id,
-            client_secret=settings.youtube_client_secret,
-            project_id=settings.youtube_project_id,
-            data_dir=settings.data_dir,
-        )
-
-        # Check quota status before processing
-        if not youtube_service.check_quota_status():
-            log.error("❌ YouTube quota check failed. Skipping upload.")
-            youtube_service = None
 
     process_shorts_with_progress(shorts, settings, settings.data_dir, youtube_service)
 
