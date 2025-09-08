@@ -2,6 +2,8 @@
 
 A powerful tool to automatically convert long-form videos into engaging YouTube Shorts using AI analysis and professional video effects.
 
+> 👨‍💻 Want to learn more about the author? Check out [vitaliihonchar.com](https://vitaliihonchar.com/) or the [YouTube channel](https://www.youtube.com/@vhonchar) for more content!
+
 ## Features
 
 - 🎯 **AI-Powered Content Analysis** - Uses OpenAI/OpenRouter to identify the best moments for shorts with strict duration requirements
