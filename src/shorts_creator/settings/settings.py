@@ -20,6 +20,10 @@ class AppSettings(BaseSettings):
     whisper_model_size: Literal["medium", "large"] = "medium"
     video_effect_strategy: VideoEffectsStrategy
     debug: bool
+    # YouTube upload settings
+    youtube_upload: bool = False
+    youtube_credentials_path: Path | None = None
+    youtube_privacy: Literal["private", "public", "unlisted"] = "private"
 
     class Config:
         env_file = ".env"
@@ -71,6 +75,25 @@ def parse_args() -> AppSettings:
         default=False,
         help="Enable debug mode with verbose logging",
     )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        default=False,
+        help="Upload generated shorts to YouTube",
+    )
+    parser.add_argument(
+        "--youtube-credentials",
+        type=Path,
+        default=None,
+        help="Path to YouTube OAuth2 credentials JSON file",
+    )
+    parser.add_argument(
+        "--youtube-privacy",
+        type=str,
+        default="private",
+        choices=["private", "public", "unlisted"],
+        help="YouTube video privacy setting",
+    )
     args = parser.parse_args()
     return AppSettings(
         refresh=args.no_refresh,
@@ -80,4 +103,7 @@ def parse_args() -> AppSettings:
         short_duration_seconds=args.short_duration,
         video_effect_strategy=VideoEffectsStrategy[args.strategy.upper()],
         debug=args.debug,
+        youtube_upload=args.upload,
+        youtube_credentials_path=args.youtube_credentials,
+        youtube_privacy=args.youtube_privacy,
     )  # type: ignore

@@ -33,8 +33,8 @@ class YouTubeShort(BaseModel):
         description="Index of the ending segment (0-based, inclusive)"
     )
     description: str = Field(
-        min_length=300,
-        description="Detailed description for the short video (can include hashtags)",
+        min_length=500,
+        description="YouTube-optimized video description ready to paste, including hook, value proposition, call-to-action, and hashtags",
     )
     estimated_duration: str = Field(
         description="Estimated duration of this segment (e.g., '30-60 seconds')"

@@ -67,7 +67,13 @@ Identify and extract exactly {max_shorts} YouTube Shorts segments (≥{max_durat
 For each identified segment, provide:
 - **title**: Catchy title (≤30 characters, action words/numbers preferred)
 - **subscribe_subtitle**: Call-to-action subtitle (≤50 characters)
-- **description**: YouTube description (≥300 characters) with hook, value, CTA, hashtags
+- **description**: Complete YouTube-optimized description (≥500 characters) written as natural, flowing text for viewers:
+  * Start with an engaging hook that captures what viewers will learn
+  * Expand on the main content and key takeaways in paragraph form
+  * End with a natural call-to-action encouraging engagement
+  * Include relevant hashtags at the bottom
+  * Write in conversational tone, ready to copy-paste directly into YouTube
+  * NO labels like "Hook:", "Value:", "CTA:" - write as seamless viewer-facing content
 - **tags**: 20-50 relevant YouTube optimization tags
 - **start_segment_index**: Starting segment number (0-based)
 - **end_segment_index**: Ending segment number (0-based, inclusive) 
