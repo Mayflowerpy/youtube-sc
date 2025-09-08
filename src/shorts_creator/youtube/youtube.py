@@ -115,7 +115,7 @@ class YouTubeService:
         if "id" in response:
             video_id = response["id"]
             video_url = f"https://youtu.be/{video_id}"
-            log.info(f"✅ Video uploaded successfully: {video_url}")
+            log.debug(f"✅ Video uploaded successfully: {video_url}")
             return video_id
 
         raise RuntimeError(f"Upload failed, no video ID returned: {response}")

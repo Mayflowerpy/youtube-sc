@@ -99,6 +99,12 @@ def main():
     settings = parse_args()
     logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
 
+    log.info(
+        f"Starting shorts creation: refresh={settings.refresh}, video = {settings.video_path}"
+    )
+
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+
     youtube_service = None
     if settings.youtube_upload:
         if not settings.youtube_client_id or not settings.youtube_client_secret:
@@ -115,12 +121,6 @@ def main():
 
         if not youtube_service.check_quota_status():
             raise RuntimeError("YouTube API quota exceeded or not available.")
-
-    log.info(
-        f"Starting shorts creation: refresh={settings.refresh}, video = {settings.video_path}"
-    )
-
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
 
     audio_file = audio_retriever.retrieve_audio(
         settings.video_path,
