@@ -135,7 +135,13 @@ def main():
             client_id=settings.youtube_client_id,
             client_secret=settings.youtube_client_secret,
             project_id=settings.youtube_project_id,
+            data_dir=settings.data_dir,
         )
+
+        # Check quota status before processing
+        if not youtube_service.check_quota_status():
+            log.error("❌ YouTube quota check failed. Skipping upload.")
+            youtube_service = None
 
     process_shorts_with_progress(shorts, settings, settings.data_dir, youtube_service)
 

@@ -1,6 +1,7 @@
 import logging
 import pickle
 import json
+import webbrowser
 from pathlib import Path
 from typing import Optional
 
@@ -8,6 +9,7 @@ from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 
 log = logging.getLogger(__name__)
 
@@ -19,12 +21,12 @@ class YouTubeService:
         self,
         client_id: str,
         client_secret: str,
+        data_dir: Path,
         project_id: Optional[str] = None,
         auth_uri: str = "https://accounts.google.com/o/oauth2/auth",
         token_uri: str = "https://oauth2.googleapis.com/token",
         auth_provider_x509_cert_url: str = "https://www.googleapis.com/oauth2/v1/certs",
-        redirect_uris: list[str] = ["http://localhost"],
-        token_file: str | Path = "youtube_token.pickle",
+        redirect_uris: list[str] = ["http://localhost:8080"],
     ):
         self.client_id = client_id
         self.client_secret = client_secret
@@ -33,9 +35,50 @@ class YouTubeService:
         self.token_uri = token_uri
         self.auth_provider_x509_cert_url = auth_provider_x509_cert_url
         self.redirect_uris = redirect_uris
-        self.token_file = Path(token_file)
+        self.token_file = data_dir / "youtube_token.pickle"
         self.scopes = ["https://www.googleapis.com/auth/youtube.upload"]
         self.youtube = self._authenticate()
+
+    def check_quota_status(self) -> bool:
+        """Check if we can make API calls by testing with a simple request."""
+        if not self.youtube:
+            log.error("❌ YouTube API client not authenticated - cannot check quota")
+            return False
+
+        try:
+            # Make a simple API call that costs only 1 unit
+            request = self.youtube.channels().list(
+                part="snippet", mine=True, maxResults=1
+            )
+            response = request.execute()
+            log.info("✅ YouTube API quota check passed")
+            return True
+        except HttpError as e:
+            if e.resp.status == 403 and "quota" in str(e).lower():
+                log.error("❌ YouTube API quota exceeded (detected during quota check)")
+                self._log_quota_info()
+                return False
+            else:
+                log.error(f"❌ YouTube API error during quota check: {e}")
+                return False
+        except Exception as e:
+            log.error(f"❌ Quota check failed: {e}")
+            return False
+
+    def _log_quota_info(self):
+        """Log detailed quota information."""
+        log.error("📊 YouTube Data API v3 Quota Information:")
+        log.error("   • Free tier: 10,000 units/day")
+        log.error("   • Video upload cost: ~1,600 units")
+        log.error("   • Daily limit: ~6 uploads")
+        log.error("   • Quota resets at midnight Pacific Time")
+        log.error("🔧 Solutions:")
+        log.error("   • Wait for quota reset (midnight PT)")
+        log.error("   • Check Google Cloud Console for usage details")
+        log.error(
+            "   • Request quota increase: https://console.cloud.google.com/iam-admin/quotas"
+        )
+        log.error("   • Verify you're using the correct project")
 
     def upload_video(
         self,
@@ -78,29 +121,53 @@ class YouTubeService:
             part=",".join(body.keys()), body=body, media_body=media
         )
 
-        response = None
-        while response is None:
-            status, response = request.next_chunk()
-            if status:
-                progress = int(status.progress() * 100)
-                log.debug(f"Upload progress: {progress}%")
+        try:
+            response = None
+            while response is None:
+                status, response = request.next_chunk()
+                if status:
+                    progress = int(status.progress() * 100)
+                    log.debug(f"Upload progress: {progress}%")
 
-        if "id" in response:
-            video_id = response["id"]
-            video_url = f"https://youtu.be/{video_id}"
-            log.info(f"✅ Video uploaded successfully: {video_url}")
-            return video_id
+            if "id" in response:
+                video_id = response["id"]
+                video_url = f"https://youtu.be/{video_id}"
+                log.info(f"✅ Video uploaded successfully: {video_url}")
+                return video_id
 
-        raise RuntimeError(f"Upload failed, no video ID returned: {response}")
+            raise RuntimeError(f"Upload failed, no video ID returned: {response}")
+
+        except HttpError as e:
+            if e.resp.status == 403 and "quota" in str(e).lower():
+                log.error("❌ YouTube API quota exceeded during upload!")
+                self._log_quota_info()
+                return None
+            else:
+                log.error(f"❌ YouTube API error: {e}")
+                return None
+        except Exception as e:
+            log.error(f"❌ Upload failed: {e}")
+            return None
 
     def _authenticate(self):
         """Authenticate with YouTube API using OAuth2."""
-        creds = self._load_credentials()
+        try:
+            creds = self._load_credentials()
 
-        if not creds or not creds.valid:
-            creds = self._create_credentials(creds)
+            if not creds or not creds.valid:
+                creds = self._create_credentials(creds)
 
-        return build("youtube", "v3", credentials=creds)
+            youtube = build("youtube", "v3", credentials=creds)
+            log.info("✅ YouTube API client initialized successfully")
+            return youtube
+        except Exception as e:
+            log.error(f"❌ Failed to authenticate with YouTube API: {e}")
+            log.error("🔧 Common solutions:")
+            log.error("   • Check your client_id and client_secret")
+            log.error("   • Verify OAuth2 redirect URIs in Google Cloud Console")
+            log.error("   • Ensure YouTube Data API v3 is enabled")
+            log.error("   • Delete youtube_token.pickle and try again")
+            return None
 
     def _load_credentials(self):
         """Load existing OAuth2 token from file."""
@@ -134,16 +201,10 @@ class YouTubeService:
             }
 
             flow = Flow.from_client_config(client_secrets, self.scopes)
-            flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+            flow.redirect_uri = "http://localhost:8080"
 
-            auth_url, _ = flow.authorization_url(prompt="consent")
-            log.info(
-                f"\n🔐 Please visit this URL to authorize YouTube upload: {auth_url}"
-            )
-            code = input("📋 Enter the authorization code: ")
-
-            flow.fetch_token(code=code)
-            creds = flow.credentials
+            # Run local server for OAuth callback
+            creds = self._run_local_server_flow(flow)
 
         # Save credentials for next run
         try:
@@ -153,3 +214,46 @@ class YouTubeService:
             log.warning(f"Failed to save token: {e}")
 
         return creds
+
+    def _run_local_server_flow(self, flow):
+        """Run OAuth2 flow using local server to handle callback."""
+        try:
+            # Try to use the built-in local server flow
+            creds, _ = flow.run_local_server(
+                host="localhost", port=8080, open_browser=True, timeout_seconds=300
+            )
+            return creds
+        except Exception as e:
+            log.error(f"Local server OAuth flow failed: {e}")
+            # Fallback to manual flow with copy-paste
+            return self._run_manual_flow(flow)
+
+    def _run_manual_flow(self, flow):
+        """Fallback manual OAuth flow for when local server fails."""
+        log.info("Falling back to manual OAuth flow...")
+
+        # Generate authorization URL
+        auth_url, _ = flow.authorization_url(prompt="consent")
+
+        log.info(f"\n🔐 Please visit this URL to authorize YouTube upload:")
+        log.info(f"{auth_url}")
+        log.info("\nAfter authorizing, you'll be redirected to localhost:8080")
+        log.info(
+            "Copy the ENTIRE URL from your browser's address bar after the redirect"
+        )
+
+        # Get the full redirect URL from user
+        redirect_response = input("\n📋 Paste the full redirect URL here: ").strip()
+
+        # Extract authorization code from URL
+        if "code=" in redirect_response:
+            # Parse the authorization code from the URL
+            import urllib.parse
+
+            parsed_url = urllib.parse.urlparse(redirect_response)
+            code = urllib.parse.parse_qs(parsed_url.query)["code"][0]
+
+            flow.fetch_token(code=code)
+            return flow.credentials
+        else:
+            raise RuntimeError("Invalid redirect URL provided")
