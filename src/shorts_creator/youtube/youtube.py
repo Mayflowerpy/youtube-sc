@@ -36,34 +36,18 @@ class YouTubeService:
         self.auth_provider_x509_cert_url = auth_provider_x509_cert_url
         self.redirect_uris = redirect_uris
         self.token_file = data_dir / "youtube_token.pickle"
-        self.scopes = ["https://www.googleapis.com/auth/youtube.upload"]
+        self.scopes = [
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly",
+            "https://www.googleapis.com/auth/youtube.force-ssl",
+        ]
         self.youtube = self._authenticate()
 
     def check_quota_status(self) -> bool:
-        """Check if we can make API calls by testing with a simple request."""
-        if not self.youtube:
-            log.error("❌ YouTube API client not authenticated - cannot check quota")
-            return False
-
-        try:
-            # Make a simple API call that costs only 1 unit
-            request = self.youtube.channels().list(
-                part="snippet", mine=True, maxResults=1
-            )
-            response = request.execute()
-            log.info("✅ YouTube API quota check passed")
-            return True
-        except HttpError as e:
-            if e.resp.status == 403 and "quota" in str(e).lower():
-                log.error("❌ YouTube API quota exceeded (detected during quota check)")
-                self._log_quota_info()
-                return False
-            else:
-                log.error(f"❌ YouTube API error during quota check: {e}")
-                return False
-        except Exception as e:
-            log.error(f"❌ Quota check failed: {e}")
-            return False
+        request = self.youtube.channels().list(part="snippet", mine=True, maxResults=1)
+        response = request.execute()
+        log.info(f"✅ YouTube API quota check passed: {json.dumps(response)}")
+        return True
 
     def _log_quota_info(self):
         """Log detailed quota information."""
@@ -121,33 +105,20 @@ class YouTubeService:
             part=",".join(body.keys()), body=body, media_body=media
         )
 
-        try:
-            response = None
-            while response is None:
-                status, response = request.next_chunk()
-                if status:
-                    progress = int(status.progress() * 100)
-                    log.debug(f"Upload progress: {progress}%")
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                progress = int(status.progress() * 100)
+                log.debug(f"Upload progress: {progress}%")
 
-            if "id" in response:
-                video_id = response["id"]
-                video_url = f"https://youtu.be/{video_id}"
-                log.info(f"✅ Video uploaded successfully: {video_url}")
-                return video_id
+        if "id" in response:
+            video_id = response["id"]
+            video_url = f"https://youtu.be/{video_id}"
+            log.info(f"✅ Video uploaded successfully: {video_url}")
+            return video_id
 
-            raise RuntimeError(f"Upload failed, no video ID returned: {response}")
-
-        except HttpError as e:
-            if e.resp.status == 403 and "quota" in str(e).lower():
-                log.error("❌ YouTube API quota exceeded during upload!")
-                self._log_quota_info()
-                return None
-            else:
-                log.error(f"❌ YouTube API error: {e}")
-                return None
-        except Exception as e:
-            log.error(f"❌ Upload failed: {e}")
-            return None
+        raise RuntimeError(f"Upload failed, no video ID returned: {response}")
 
     def _authenticate(self):
         """Authenticate with YouTube API using OAuth2."""
@@ -167,7 +138,7 @@ class YouTubeService:
             log.error("   • Verify OAuth2 redirect URIs in Google Cloud Console")
             log.error("   • Ensure YouTube Data API v3 is enabled")
             log.error("   • Delete youtube_token.pickle and try again")
-            return None
+            raise e
 
     def _load_credentials(self):
         """Load existing OAuth2 token from file."""
@@ -211,7 +182,7 @@ class YouTubeService:
             with open(self.token_file, "wb") as token:
                 pickle.dump(creds, token)
         except Exception as e:
-            log.warning(f"Failed to save token: {e}")
+            raise e
 
         return creds
 
