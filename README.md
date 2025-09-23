@@ -2,6 +2,7 @@
 
 A powerful tool to automatically convert long-form videos into engaging YouTube Shorts using AI analysis and professional video effects.
 
+> Detailed description about this project can be found in the [blog post](https://vitaliihonchar.com/insights/youtube-shorts-creator).
 > 👨‍💻 Want to learn more about the author? Check out [vitaliihonchar.com](https://vitaliihonchar.com/) or the [YouTube channel](https://www.youtube.com/@vhonchar) for more content!
 
 ## Features
