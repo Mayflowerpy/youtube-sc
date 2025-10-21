@@ -129,6 +129,7 @@ def main():
         refresh=settings.refresh,
         duration_seconds=settings.duration_seconds,
         start_offset_seconds=settings.start_offset_seconds,
+        audio_stream_index=settings.audio_stream_index,
         debug=settings.debug,
         ffmpeg_path=settings.ffmpeg_path,
     )

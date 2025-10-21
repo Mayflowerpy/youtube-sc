@@ -13,6 +13,7 @@ def retrieve_audio(
     refresh: bool,
     duration_seconds: int | None,
     start_offset_seconds: int,
+    audio_stream_index: int | None,
     debug: bool,
     ffmpeg_path: Path | None = None,
 ) -> Path:
@@ -29,15 +30,18 @@ def retrieve_audio(
         kwargs = {}
         if start_offset_seconds:
             kwargs["ss"] = start_offset_seconds
+        if audio_stream_index is not None:
+            kwargs["map"] = f"0:a:{audio_stream_index}"
         if duration_seconds:
             kwargs["t"] = duration_seconds
 
         log.info(
-            "Extracting audio: video = %s, output = %s, offset = %ss, duration = %ss, ffmpeg = %s",
+            "Extracting audio: video = %s, output = %s, offset = %ss, duration = %ss, audio_stream = %s, ffmpeg = %s",
             video_path,
             output_file,
             start_offset_seconds,
             duration_seconds if duration_seconds is not None else "full",
+            audio_stream_index if audio_stream_index is not None else "auto",
             resolved_ffmpeg,
         )
         ffmpeg.input(str(video_path)).output(

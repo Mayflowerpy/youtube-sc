@@ -21,6 +21,7 @@ class AppSettings(BaseSettings):
     whisper_model_size: Literal["tiny", "base", "small", "medium", "large"] = "medium"
     video_effect_strategy: VideoEffectsStrategy = VideoEffectsStrategy.BASIC
     debug: bool = False
+    audio_stream_index: int | None = None
     # YouTube upload settings
     youtube_upload: bool = False
     youtube_privacy: Literal["private", "public", "unlisted"] = "private"
@@ -118,6 +119,12 @@ def parse_args() -> AppSettings:
         help="Explicit path to the ffmpeg executable. Overrides PATH lookup.",
     )
     parser.add_argument(
+        "--audio-stream-index",
+        type=int,
+        default=None,
+        help="Index аудиодорожки (0-based) для извлечения",
+    )
+    parser.add_argument(
         "--upload",
         action="store_true",
         default=None,
@@ -157,6 +164,8 @@ def parse_args() -> AppSettings:
         settings_kwargs["youtube_privacy"] = args.youtube_privacy
     if args.ffmpeg_path is not None:
         settings_kwargs["ffmpeg_path"] = args.ffmpeg_path
+    if args.audio_stream_index is not None:
+        settings_kwargs["audio_stream_index"] = args.audio_stream_index
     if args.whisper_model is not None:
         settings_kwargs["whisper_model_size"] = args.whisper_model
     if args.model_name:
