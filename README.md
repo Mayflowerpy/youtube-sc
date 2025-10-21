@@ -50,20 +50,24 @@ This creates a global `shorts-creator` command you can run from anywhere.
 Create a `.env` file in your working directory with the required API key:
 
 ```bash
-# Required: OpenAI API key
-YOUTUBE_SHORTS_OPENAI_API_KEY=your-api-key-here
-
 # Optional: Custom API endpoint (defaults to OpenRouter)
 YOUTUBE_SHORTS_OPENAI_BASE_URL=https://openrouter.ai/api/v1
 
-# Optional: Model selection (defaults to gpt-5-mini)
-YOUTUBE_SHORTS_MODEL_NAME=openai/gpt-5-mini
+# Optional: Model selection (defaults - openai/gpt-5-mini)
+YOUTUBE_SHORTS_MODEL_NAME=qwen/qwen3-coder:free
 
 # Optional: Default settings
-YOUTUBE_SHORTS_SHORTS_NUMBER=3
-YOUTUBE_SHORTS_SHORT_DURATION_SECONDS=60
+YOUTUBE_SHORTS_SHORTS_NUMBER=6
 YOUTUBE_SHORTS_SPEED_FACTOR=1.35
-YOUTUBE_SHORTS_WHISPER_MODEL_SIZE=medium
+
+YOUTUBE_SHORTS_START_OFFSET_SECONDS=4500
+YOUTUBE_SHORTS_DURATION_SECONDS=3600
+YOUTUBE_SHORTS_SHORT_DURATION_SECONDS=30
+YOUTUBE_SHORTS_DEBUG=true
+YOUTUBE_SHORTS_WHISPER_MODEL_SIZE=small
+
+YOUTUBE_SHORTS_VIDEO_PATH=films/ApocalypseNow.mp4
+YOUTUBE_SHORTS_AUDIO_STREAM_INDEX=0
 ```
 
 ## Usage
@@ -72,7 +76,7 @@ YOUTUBE_SHORTS_WHISPER_MODEL_SIZE=medium
 
 ```bash
 # Process a video with default settings
-shorts-creator -v /path/to/your/video.mp4
+shorts-creator
 ```
 
 ### Command Line Arguments
