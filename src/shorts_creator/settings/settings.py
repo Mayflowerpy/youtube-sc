@@ -15,17 +15,19 @@ class AppSettings(BaseSettings):
     video_path: Path
     shorts_number: int = 5
     duration_seconds: int | None = None
+    start_offset_seconds: int = 0
     short_duration_seconds: int = 60
     speed_factor: float = 1.35
-    whisper_model_size: Literal["medium", "large"] = "medium"
-    video_effect_strategy: VideoEffectsStrategy
-    debug: bool
+    whisper_model_size: Literal["tiny", "base", "small", "medium", "large"] = "medium"
+    video_effect_strategy: VideoEffectsStrategy = VideoEffectsStrategy.BASIC
+    debug: bool = False
     # YouTube upload settings
     youtube_upload: bool = False
     youtube_privacy: Literal["private", "public", "unlisted"] = "private"
     youtube_client_id: str | None = None
     youtube_client_secret: str | None = None
     youtube_project_id: str | None = None
+    ffmpeg_path: Path | None = None
 
     class Config:
         env_file = ".env"
@@ -37,18 +39,31 @@ def parse_args() -> AppSettings:
     """Parse command line arguments and return config."""
     parser = argparse.ArgumentParser(description="YouTube Shorts Creator")
     parser.add_argument(
+        "--refresh",
+        dest="refresh",
+        action="store_true",
+        default=None,
+        help="Force regeneration even if cached files exist",
+    )
+    parser.add_argument(
         "-nr",
         "--no-refresh",
+        dest="refresh",
         action="store_false",
-        default=True,
         help="Do not refresh/regenerate content, use cached files if available",
     )
-    parser.add_argument("-v", "--video", type=Path, help="Path to the video file")
+    parser.add_argument(
+        "-v",
+        "--video",
+        type=Path,
+        default=None,
+        help="Path to the video file",
+    )
     parser.add_argument(
         "-s",
         "--shorts",
         type=int,
-        default=3,
+        default=None,
         help="Maximum number of shorts to generate",
     )
     parser.add_argument(
@@ -59,46 +74,92 @@ def parse_args() -> AppSettings:
         help="Maximum duration of video to process in seconds",
     )
     parser.add_argument(
+        "--start-offset",
+        type=int,
+        default=None,
+        help="Start offset (in seconds) to seek into the input video before processing",
+    )
+    parser.add_argument(
         "-sd",
         "--short-duration",
         type=int,
-        default=60,
+        default=None,
         help="Duration of each short in seconds",
     )
     parser.add_argument(
         "--strategy",
         type=str,
-        default="basic",
+        default=None,
         help=f"Video effects strategy to use: {', '.join([s.name.lower() for s in VideoEffectsStrategy])}",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        default=False,
+        default=None,
         help="Enable debug mode with verbose logging",
+    )
+    parser.add_argument(
+        "--whisper-model",
+        type=str,
+        default=None,
+        choices=["tiny", "base", "small", "medium", "large"],
+        help="Size of the Whisper model for transcription (smaller models use less memory)",
+    )
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        default=None,
+        help="Override the OpenRouter/OpenAI-compatible model ID (e.g. openai/gpt-4o-mini)",
+    )
+    parser.add_argument(
+        "--ffmpeg-path",
+        type=Path,
+        default=None,
+        help="Explicit path to the ffmpeg executable. Overrides PATH lookup.",
     )
     parser.add_argument(
         "--upload",
         action="store_true",
-        default=False,
+        default=None,
         help="Upload generated shorts to YouTube",
     )
     parser.add_argument(
         "--youtube-privacy",
         type=str,
-        default="private",
+        default=None,
         choices=["private", "public", "unlisted"],
         help="YouTube video privacy setting",
     )
     args = parser.parse_args()
-    return AppSettings(
-        refresh=args.no_refresh,
-        video_path=args.video,
-        shorts_number=args.shorts,
-        duration_seconds=args.duration,
-        short_duration_seconds=args.short_duration,
-        video_effect_strategy=VideoEffectsStrategy[args.strategy.upper()],
-        debug=args.debug,
-        youtube_upload=args.upload,
-        youtube_privacy=args.youtube_privacy,
-    )  # type: ignore
+    settings_kwargs: dict[str, object] = {}
+
+    if args.refresh is not None:
+        settings_kwargs["refresh"] = args.refresh
+    if args.video is not None:
+        settings_kwargs["video_path"] = args.video
+    if args.shorts is not None:
+        settings_kwargs["shorts_number"] = args.shorts
+    if args.duration is not None:
+        settings_kwargs["duration_seconds"] = args.duration
+    if args.start_offset is not None:
+        settings_kwargs["start_offset_seconds"] = args.start_offset
+    if args.short_duration is not None:
+        settings_kwargs["short_duration_seconds"] = args.short_duration
+    if args.strategy is not None:
+        settings_kwargs["video_effect_strategy"] = VideoEffectsStrategy[
+            args.strategy.upper()
+        ]
+    if args.debug is not None:
+        settings_kwargs["debug"] = args.debug
+    if args.upload is not None:
+        settings_kwargs["youtube_upload"] = args.upload
+    if args.youtube_privacy is not None:
+        settings_kwargs["youtube_privacy"] = args.youtube_privacy
+    if args.ffmpeg_path is not None:
+        settings_kwargs["ffmpeg_path"] = args.ffmpeg_path
+    if args.whisper_model is not None:
+        settings_kwargs["whisper_model_size"] = args.whisper_model
+    if args.model_name:
+        settings_kwargs["model_name"] = args.model_name
+
+    return AppSettings(**settings_kwargs)  # type: ignore

@@ -42,6 +42,7 @@ def process_shorts_with_progress(
                 short_index=i,
                 debug=settings.debug,
                 refresh=settings.refresh,
+                ffmpeg_path=settings.ffmpeg_path,
             )
             pbar.set_postfix(
                 step="Video cut",
@@ -127,7 +128,9 @@ def main():
         settings.data_dir / "extracted_audio.mp3",
         refresh=settings.refresh,
         duration_seconds=settings.duration_seconds,
+        start_offset_seconds=settings.start_offset_seconds,
         debug=settings.debug,
+        ffmpeg_path=settings.ffmpeg_path,
     )
 
     log.info(f"Audio extracted to {audio_file}")

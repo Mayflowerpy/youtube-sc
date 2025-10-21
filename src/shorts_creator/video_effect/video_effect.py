@@ -1,6 +1,7 @@
 from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import Optional, Literal, List
+import textwrap
 from ffmpeg.nodes import Stream
 from shorts_creator.assets.fonts import get_font_path
 from pysubs2 import SSAFile, SSAEvent, SSAStyle, Alignment, Color
@@ -63,6 +64,7 @@ class TextEffect(VideoEffect):
         font_name: str = "roboto-bold",
         target_w: int = 1080,
         target_h: int = 1920,
+        max_chars_per_line: Optional[int] = None,
     ):
         self.text = text
         self.text_align = text_align
@@ -72,6 +74,7 @@ class TextEffect(VideoEffect):
         self.font_path = str(get_font_path(font_name))
         self.target_w = target_w
         self.target_h = target_h
+        self.max_chars_per_line = max_chars_per_line or 22
 
     def _calculate_y_position(self) -> int:
         """Calculate Y position based on text alignment and black bar information"""
@@ -80,29 +83,46 @@ class TextEffect(VideoEffect):
         else:
             return self.target_h - 400
 
+    def _wrap_text(self, text: str) -> str:
+        if not text.strip():
+            return ""
+
+        if self.max_chars_per_line <= 0:
+            return text
+
+        wrapped_lines = textwrap.wrap(
+            text,
+            width=self.max_chars_per_line,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+        return "\n".join(wrapped_lines) if wrapped_lines else text
+
     def apply(self, video_stream: Stream) -> list[Stream]:
         v = video_stream.video
         a = video_stream.audio
 
         y_position = self._calculate_y_position()
+        render_text = self._wrap_text(self.text)
 
         # Add text with shadow effect (similar to original implementation)
         # First add black shadow
         v = v.filter(
             "drawtext",
-            text=self.text,
+            text=render_text,
             fontfile=self.font_path,
             fontsize=self.font_size,
             fontcolor="black",
             x="(w-text_w)/2+2",
             y=f"{y_position}+2",
             alpha="0.8",
+            line_spacing=10,
         )
 
         # Then add main text with border
         v = v.filter(
             "drawtext",
-            text=self.text,
+            text=render_text,
             fontfile=self.font_path,
             fontsize=self.font_size,
             fontcolor=self.font_color,
@@ -110,6 +130,7 @@ class TextEffect(VideoEffect):
             y=str(y_position),
             borderw=3,
             bordercolor="black",
+            line_spacing=10,
         )
 
         return [v, a]

@@ -1,5 +1,9 @@
+import json
 import logging
 from pathlib import Path
+from typing import Any
+
+import httpx
 from openai import OpenAI
 from shorts_creator.pipeline import storage
 from shorts_creator.domain.models import (
@@ -65,7 +69,7 @@ Identify and extract exactly {max_shorts} YouTube Shorts segments (≥{max_durat
 
 ## OUTPUT REQUIREMENTS
 For each identified segment, provide:
-- **title**: Catchy title (≤30 characters, action words/numbers preferred)
+- **title**: Catchy title (≤25 characters, action words/numbers preferred)
 - **subscribe_subtitle**: Call-to-action subtitle (≤50 characters)
 - **description**: Complete YouTube-optimized description (≥500 characters) written as natural, flowing text for viewers:
   * Start with an engaging hook that captures what viewers will learn
@@ -113,23 +117,183 @@ def _call_openai_api(
 ) -> YouTubeShortsRecommendationResponse:
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
 
-    response = client.beta.chat.completions.parse(
-        model=settings.model_name,
-        messages=[
+    try:
+        response = client.beta.chat.completions.parse(
+            model=settings.model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format=YouTubeShortsRecommendationResponse,
+            temperature=0.3,
+        )
+
+        analysis = response.choices[0].message.parsed
+
+        if analysis is None:
+            log.error("Failed to parse response from OpenAI")
+            raise ValueError("Response from OpenAI is None")
+
+        return analysis
+    except AttributeError as err:
+        log.warning(
+            "Structured response parsing unavailable, falling back to manual parsing: %s",
+            err,
+        )
+    except Exception as err:
+        log.warning(
+            "Structured response parsing failed (%s), falling back to manual parsing",
+            err,
+        )
+
+    completion_data = _request_chat_completion_via_httpx(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        settings=settings,
+    )
+
+    return _parse_completion_response(completion_data)
+
+
+def _request_chat_completion_via_httpx(
+    system_prompt: str, user_prompt: str, settings: AppSettings
+) -> dict[str, Any]:
+    base_url = settings.openai_base_url.rstrip("/")
+    url = f"{base_url}/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {settings.openai_api_key}",
+        "Content-Type": "application/json",
+    }
+
+    if "openrouter.ai" in base_url:
+        headers.setdefault(
+            "HTTP-Referer", "https://github.com/vitalii-honchar/youtube-shorts-creator"
+        )
+        headers.setdefault("X-Title", "YouTube Shorts Creator")
+
+    schema = YouTubeShortsRecommendationResponse.model_json_schema()
+
+    payload: dict[str, Any] = {
+        "model": settings.model_name,
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        response_format=YouTubeShortsRecommendationResponse,
-        temperature=0.3,
-    )
+        "temperature": 0.3,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "YouTubeShortsRecommendationResponse",
+                "schema": schema,
+            },
+        },
+    }
 
-    analysis = response.choices[0].message.parsed
+    try:
+        response = httpx.post(url, headers=headers, json=payload, timeout=120)
+    except httpx.HTTPError as http_error:
+        raise RuntimeError("Failed to contact OpenAI-compatible API") from http_error
 
-    if analysis is None:
-        log.error("Failed to parse response from OpenAI")
-        raise ValueError("Response from OpenAI is None")
+    content_type = response.headers.get("content-type", "")
+    body_preview = response.text[:500]
 
-    return analysis
+    if response.status_code >= 400:
+        error_message = ""
+        try:
+            error_payload = response.json()
+            error_message = error_payload.get("error", {}).get("message", "")
+        except json.JSONDecodeError:
+            pass
+
+        if error_message:
+            log.error(
+                "API returned error status %s: %s", response.status_code, error_message
+            )
+            raise RuntimeError(
+                f"API request failed with status {response.status_code}: {error_message}"
+            )
+
+        log.error(
+            "API returned error status %s: %s", response.status_code, body_preview
+        )
+        raise RuntimeError(
+            f"API request failed with status {response.status_code}. Check API key, model name, or account limits."
+        )
+
+    if not content_type.startswith("application/json"):
+        log.error(
+            "API returned non-JSON content (status %s, content-type %s): %s",
+            response.status_code,
+            content_type,
+            body_preview,
+        )
+        raise ValueError(
+            "API returned non-JSON response. Verify base URL, API key, and required headers."
+        )
+
+    try:
+        data = response.json()
+    except json.JSONDecodeError as json_error:
+        log.error(
+            "Unable to parse API JSON response. Snippet: %s", body_preview
+        )
+        raise ValueError("Failed to decode API JSON response") from json_error
+
+    return data
+
+
+def _parse_completion_response(completion_data: dict[str, Any]) -> YouTubeShortsRecommendationResponse:
+    choices = completion_data.get("choices")
+    if not choices:
+        log.error("API response did not include choices field")
+        raise ValueError("API response missing 'choices'")
+
+    first_choice = choices[0]
+    message: dict[str, Any] = first_choice.get("message", {})
+
+    if "parsed" in message and message["parsed"]:
+        return YouTubeShortsRecommendationResponse.model_validate(message["parsed"])
+
+    content = message.get("content")
+
+    text_content: str
+    if isinstance(content, list):
+        text_content = "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
+    else:
+        text_content = content or ""
+
+    return _parse_analysis_from_text(text_content)
+
+
+def _parse_analysis_from_text(text_content: str) -> YouTubeShortsRecommendationResponse:
+    text_content = (text_content or "").strip()
+
+    if not text_content:
+        log.error("LLM response content is empty")
+        raise ValueError("LLM response content is empty")
+
+    if text_content.lstrip().startswith("<!DOCTYPE"):
+        log.error(
+            "Received HTML response instead of JSON. Check API credentials or headers. Snippet: %s",
+            text_content[:500],
+        )
+        raise ValueError(
+            "API returned HTML instead of JSON. Verify API key, headers, and model availability."
+        )
+
+    try:
+        parsed_payload = json.loads(text_content)
+    except json.JSONDecodeError as json_error:
+        log.error(
+            "Failed to decode LLM response as JSON. Response snippet: %s",
+            text_content[:500],
+        )
+        raise ValueError("Unable to decode OpenAI response as JSON") from json_error
+
+    return YouTubeShortsRecommendationResponse.model_validate(parsed_payload)
 
 
 def _add_timestamps_to_shorts(

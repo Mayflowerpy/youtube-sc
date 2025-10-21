@@ -1,7 +1,10 @@
 import logging
-import ffmpeg
 from pathlib import Path
+
+import ffmpeg
+
 from shorts_creator.domain.models import YouTubeShortWithSpeech, Speech
+from shorts_creator.pipeline.audio_retriever import _resolve_ffmpeg_binary
 
 log = logging.getLogger(__name__)
 
@@ -25,12 +28,19 @@ def cut_video_segment_with_effects(
     start_time: float,
     end_time: float,
     debug: bool,
+    ffmpeg_path: Path | None,
 ) -> Path:
     """Cut a clean video segment only.
 
     Effects and formatting to 9:16 are applied later in video_effecter.
     """
     try:
+
+        if not input_video.exists():
+            raise FileNotFoundError(f"Input video not found: {input_video}")
+
+        resolved_ffmpeg = _resolve_ffmpeg_binary(ffmpeg_path)
+        log.debug(f"Using ffmpeg binary: {resolved_ffmpeg}")
 
         # Ensure output directory exists
         output_video.parent.mkdir(parents=True, exist_ok=True)
@@ -63,13 +73,22 @@ def cut_video_segment_with_effects(
             movflags="+faststart",
         )
 
-        ffmpeg.run(output_stream, overwrite_output=True, quiet=not debug)
+        ffmpeg.run(
+            output_stream,
+            overwrite_output=True,
+            quiet=not debug,
+            cmd=resolved_ffmpeg,
+        )
 
         return output_video
 
     except ffmpeg.Error as e:
+        stdout = e.stdout.decode(errors="ignore") if e.stdout else ""
+        stderr = e.stderr.decode(errors="ignore") if e.stderr else ""
         log.error(
-            f"FFmpeg error: stdout={e.stdout.decode()}, stderr={e.stderr.decode()}"
+            "FFmpeg error while cutting video.\nSTDOUT:\n%s\nSTDERR:\n%s",
+            stdout.strip(),
+            stderr.strip(),
         )
         raise
     except Exception as e:
@@ -84,6 +103,7 @@ def create_short_video(
     short_index: int,
     debug: bool,
     refresh: bool,
+    ffmpeg_path: Path | None,
 ) -> Path:
     """Create an enhanced short video from a YouTubeShort analysis result."""
     output_filename = (
@@ -101,4 +121,5 @@ def create_short_video(
         start_time=short.start_time,
         end_time=short.end_time,
         debug=debug,
+        ffmpeg_path=ffmpeg_path,
     )

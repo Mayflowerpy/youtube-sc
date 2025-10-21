@@ -31,12 +31,14 @@ def convert_speech_to_text(
             word_timestamps=True,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500),
-            language="en",
+            language="ru",
         )
 
         # Process segments and build Speech object
         log.info("Processing transcription segments...")
         speech_segments = []
+
+        offset = settings.start_offset_seconds
 
         with tqdm(
             total=info.duration,
@@ -46,8 +48,8 @@ def convert_speech_to_text(
         ) as pbar:
             for segment in segments:
                 speech_segment = SpeechSegment(
-                    start_time=segment.start,
-                    end_time=segment.end,
+                    start_time=segment.start + offset,
+                    end_time=segment.end + offset,
                     text=segment.text.strip(),
                 )
                 speech_segments.append(speech_segment)

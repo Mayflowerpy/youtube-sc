@@ -1,4 +1,6 @@
 from pathlib import Path
+from shorts_creator.pipeline.video_cutter import create_short_video
+from shorts_creator.pipeline.audio_retriever import _resolve_ffmpeg_binary
 from shorts_creator.video_effect.video_effect import VideoEffect
 from shorts_creator.video_effect.strategies import VideoEffectsStrategy
 from shorts_creator.settings.settings import AppSettings
@@ -19,6 +21,7 @@ def _write_output_video(
     video_streams: list[ffmpeg.nodes.Stream],
     output_file: Path,
     debug: bool,
+    ffmpeg_path: Path | None,
 ):
     out_kwargs = {
         "vcodec": "libx264",
@@ -36,9 +39,12 @@ def _write_output_video(
         "muxdelay": 0,
         "x264-params": "scenecut=0:open_gop=0:ref=1",
     }
+    resolved_ffmpeg = _resolve_ffmpeg_binary(ffmpeg_path)
+
     ffmpeg.output(*video_streams, str(output_file), **out_kwargs).run(
         overwrite_output=True,
         quiet=not debug,
+        cmd=resolved_ffmpeg,
     )
 
 
@@ -61,12 +67,13 @@ def apply_effects(
     video_name, video_ext = video_path.name.split(".")
 
     curr_video_path = video_path
-    
+
     effects = strategy.create_effects(
         short=short,
         speed_factor=settings.speed_factor,
-        data_dir=output_dir,
+        data_dir=settings.data_dir,
         short_index=short_index,
+        debug=settings.debug,
     )
 
     output_file = None
@@ -79,7 +86,12 @@ def apply_effects(
         video_stream = ffmpeg.input(str(curr_video_path), fflags="+genpts")
         output_file = output_dir / _create_file_name(video_name, video_ext, effect, i)
         video_stream = effect.apply(video_stream)
-        _write_output_video(video_stream, output_file, settings.debug)
+        _write_output_video(
+            video_stream,
+            output_file,
+            settings.debug,
+            settings.ffmpeg_path,
+        )
         curr_video_path = output_file
 
     if not settings.debug:
